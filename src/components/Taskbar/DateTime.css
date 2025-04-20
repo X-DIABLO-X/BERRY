@@ -1,0 +1,47 @@
+.datetime {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  cursor: pointer;
+  padding: 0 10px;
+  height: 100%;
+  justify-content: center;
+  transition: background-color 0.2s;
+  user-select: none;
+  position: relative;
+}
+
+.datetime:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.time {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.date {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 2px;
+}
+
+.calendar-wrapper {
+  position: absolute;
+  top: 40px;
+  right: 70px;
+  z-index: 1000;
+  animation: calendarFadeIn 0.2s ease forwards;
+}
+
+@keyframes calendarFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+} 
