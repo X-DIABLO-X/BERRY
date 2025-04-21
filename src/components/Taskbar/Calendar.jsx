@@ -39,11 +39,14 @@ const Calendar = ({ currentDate }) => {
     for (let day = 1; day <= lastDay.getDate(); day++) {
       const currentDay = new Date(year, month, day);
       const isToday = isDateToday(currentDay);
+      const isCurrentMonth = currentDay.getMonth() === new Date().getMonth() && 
+                              currentDay.getFullYear() === new Date().getFullYear();
       
       days.push({
         day: day,
         date: new Date(year, month, day),
         isToday: isToday,
+        isCurrentMonth: isCurrentMonth,
         empty: false
       });
     }
@@ -69,6 +72,11 @@ const Calendar = ({ currentDate }) => {
     setDisplayDate(new Date(displayDate.getFullYear(), displayDate.getMonth() + 1, 1));
   };
 
+  // Go to current month
+  const goToToday = () => {
+    setDisplayDate(new Date());
+  };
+
   // Format month and year for display
   const formatMonthYear = () => {
     return `${months[displayDate.getMonth()]} ${displayDate.getFullYear()}`;
@@ -77,11 +85,11 @@ const Calendar = ({ currentDate }) => {
   return (
     <div className="calendar">
       <div className="calendar-header">
-        <button className="calendar-nav" onClick={prevMonth}>
+        <button className="calendar-nav" onClick={prevMonth} title="Previous month">
           <i className="fas fa-chevron-left"></i>
         </button>
         <div className="calendar-title">{formatMonthYear()}</div>
-        <button className="calendar-nav" onClick={nextMonth}>
+        <button className="calendar-nav" onClick={nextMonth} title="Next month">
           <i className="fas fa-chevron-right"></i>
         </button>
       </div>
@@ -96,11 +104,17 @@ const Calendar = ({ currentDate }) => {
         {calendarDays.map((dayObj, index) => (
           <div 
             key={index} 
-            className={`calendar-day ${dayObj.empty ? 'empty' : ''} ${dayObj.isToday ? 'today' : ''}`}
+            className={`calendar-day ${dayObj.empty ? 'empty' : ''} ${dayObj.isToday ? 'today' : ''} ${dayObj.isCurrentMonth && !dayObj.isToday ? 'current-month' : ''}`}
           >
             {dayObj.day}
           </div>
         ))}
+      </div>
+      
+      <div className="calendar-footer">
+        <button className="today-button" onClick={goToToday}>
+          Today
+        </button>
       </div>
     </div>
   );

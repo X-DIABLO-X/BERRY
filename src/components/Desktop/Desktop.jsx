@@ -1,16 +1,19 @@
 import { useState, useEffect, useRef, useContext, useCallback } from 'react';
 import Taskbar from '../Taskbar/Taskbar';
 import './Desktop.css';
+import Terminal from '../Terminal/Terminal';
+import Settings from '../Settings/Settings';
 
 /**
  * Desktop component that serves as the main UI after login
  * @param {Object} props - Component props
  * @param {string} props.username - Current logged in username
  * @param {Function} props.onLogout - Function to call when logging out
+ * @param {Function} props.onLock - Function to lock the screen
  * @param {string} props.wallpaper - Current wallpaper path
  * @param {Function} props.onWallpaperChange - Function to update wallpaper
  */
-function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebsite }) {
+function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, setOpenWebsite }) {
   // State for desktop elements
   const [windows, setWindows] = useState([]);
   const [activeWindow, setActiveWindow] = useState(null);
@@ -59,7 +62,7 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
       { id: 'settings', name: 'Settings', icon: 'cog', type: 'app' },
       { id: 'browser', name: 'Browser', icon: 'globe', type: 'app' },
       { id: 'terminal', name: 'Terminal', icon: 'terminal', type: 'app' },
-      { id: 'notepad', name: 'Notepad', icon: 'edit', type: 'app' },
+      // Notepad app removed from desktop
     ];
     
     // Desktop files and folders (items at root level)
@@ -300,22 +303,31 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
     document.removeEventListener('mouseup', handleWindowDragEnd);
   };
   
-  // Recursive function to find an item in the file system
+  // Improved recursive function to find an item in the file system
   const findItem = (id, folder = fileSystem.root) => {
     // Special case for root
     if (id === 'root') return { item: folder, parent: null };
     
+    // Check if the ID is valid
+    if (!id) {
+      console.error("Invalid ID provided to findItem:", id);
+      return null;
+    }
+    
+    // Normalize ID to string
+    const itemId = String(id);
+    
     // Check direct children first
-    for (const child of folder.children) {
-      if (child.id === id) {
+    for (const child of folder.children || []) {
+      if (String(child.id) === itemId) {
         return { item: child, parent: folder };
       }
     }
     
     // Recursively search in subfolder children
-    for (const child of folder.children) {
-      if (child.type === 'folder' && child.children) {
-        const result = findItem(id, child);
+    for (const child of folder.children || []) {
+      if (child.type === 'folder' && Array.isArray(child.children)) {
+        const result = findItem(itemId, child);
         if (result) return result;
       }
     }
@@ -457,33 +469,39 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
     setContextMenu({ ...contextMenu, visible: false });
   };
 
-  // Function to save file content after editing
+  // Fix the saveFile function to handle file IDs correctly
   const saveFile = (fileId, newContent) => {
+    console.log("Saving file with ID:", fileId);
+    
+    // Handle null/undefined content
+    if (newContent === undefined || newContent === null) {
+      newContent = '';
+    }
+    
     // Find the file and update its content
     setFileSystem(prev => {
       const updatedSystem = { ...prev };
       
-      // Handle special case for file windows
-      if (fileId.startsWith('file-view-')) {
-        const actualFileId = fileId.replace('file-view-', '');
-        const result = findItem(actualFileId, updatedSystem.root);
-        
-        if (result) {
-          result.item.content = newContent;
-        }
+      // Extract the actual file ID from a file-view- format
+      let actualFileId = fileId;
+      if (typeof fileId === 'string' && fileId.startsWith('file-view-')) {
+        actualFileId = fileId.replace('file-view-', '');
+      }
+      
+      console.log("Looking for file with ID:", actualFileId);
+      const result = findItem(actualFileId, updatedSystem.root);
+      
+      if (result && result.item) {
+        console.log("File found, updating content");
+        result.item.content = newContent;
+        showNotification('File saved successfully!');
       } else {
-        // Regular case
-        const result = findItem(fileId, updatedSystem.root);
-        if (result) {
-          result.item.content = newContent;
-        }
+        console.error("File not found:", actualFileId);
+        showNotification('Error: File not found', 'error');
       }
       
       return updatedSystem;
     });
-    
-    // Show in-app notification instead of alert
-    showNotification('File saved successfully!');
   };
   
   // Function to delete a file or folder
@@ -797,10 +815,6 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
       // Open file in notepad
       const fileId = `file-view-${icon.id}`;
       
-      // Find the actual file content
-      const fileResult = findItem(icon.id, fileSystem.root);
-      const fileContent = fileResult ? fileResult.item.content : '';
-      
       // Check if window already exists
       const existingWindow = windows.find(win => win.id === fileId);
       if (existingWindow) {
@@ -812,12 +826,19 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
         return;
       }
       
-      // Position with offset
+      // Find the file in the file system
+      const fileResult = findItem(icon.id, fileSystem.root);
+      if (!fileResult || !fileResult.item) {
+        showNotification(`Error: File "${icon.name}" not found`, 'error');
+        return;
+      }
+      
+      // Create a window for the file
       const offset = windows.length * 25;
       
       const fileWindow = {
         id: fileId,
-        title: icon.name,
+        title: icon.name || 'Untitled',
         icon: 'edit',
         minimized: false,
         position: { 
@@ -827,11 +848,11 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
         size: { width: 600, height: 400 },
         content: 'notepad',
         fileId: icon.id,
-        fileContent: fileContent,
         zIndex: windows.length + 10
       };
       
-      setWindows([...windows, fileWindow]);
+      // Add the window and make it active
+      setWindows(prev => [...prev, fileWindow]);
       setActiveWindow(fileId);
     }
   };
@@ -875,131 +896,96 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
     // Navigate to this folder within the current file explorer window
     navigateToFolder(windowId, folderId);
   };
+
+  // Format file size in human-readable form
+  const formatFileSize = (size) => {
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Get permissions string for file/folder
+  const getPermissions = (file) => {
+    // Simplified permissions for this simulation
+    return file.type === 'folder' ? 'drwxr-xr-x' : '-rw-r--r--';
+  };
+
+  // Get formatted timestamp
+  const getTimestamp = () => {
+    const date = new Date();
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+  };
+
+  // Terminal implementation has been moved to the imported Terminal component
   
-  // Update the terminal styles to match Ubuntu terminal exactly
-  const terminalStyles = {
-    background: '#300a24',
-    textColor: '#ffffff',
-    promptUserColor: '#ff00ff', // Pink/magenta for username
-    promptHostColor: '#ff00ff', // Pink/magenta for hostname
-    promptPathColor: '#ffffff', // White for directory path
-    promptSymbolColor: '#ffffff', // White for $ symbol
-    fontSize: '14px',
-    fontFamily: "'Ubuntu Mono', 'Courier New', monospace",
-    windowHeaderBg: '#3c3b37',
-    windowHeaderText: '#dfdbd2',
-    windowButtonSize: '12px'
-  };
-
-  const [terminalState, setTerminalState] = useState({
-    currentDir: '~',
-    history: ['Welcome to BerryOS Terminal\nVersion 1.0.0\nType \'help\' for available commands'],
-    input: '',
-    commandHistory: [],
-    historyIndex: -1
-  });
-
-  const handleTerminalKeyDown = (e) => {
-    if (e.key === 'Enter' && terminalState.input.trim()) {
-      const newState = handleTerminalInput(terminalState.input);
-      // Add command to history if it's not empty
-      if (terminalState.input.trim()) {
-        newState.commandHistory = [...terminalState.commandHistory, terminalState.input];
-        newState.historyIndex = -1;
-      }
-      setTerminalState(newState);
-    } 
-    else if (e.key === 'ArrowUp') {
-      // Navigate up in command history
-      e.preventDefault();
-      if (terminalState.commandHistory.length > 0) {
-        const newIndex = terminalState.historyIndex < terminalState.commandHistory.length - 1 
-          ? terminalState.historyIndex + 1 
-          : terminalState.commandHistory.length - 1;
-        
-        setTerminalState({
-          ...terminalState,
-          historyIndex: newIndex,
-          input: terminalState.commandHistory[terminalState.commandHistory.length - 1 - newIndex]
-        });
-      }
-    } 
-    else if (e.key === 'ArrowDown') {
-      // Navigate down in command history
-      e.preventDefault();
-      if (terminalState.historyIndex > 0) {
-        const newIndex = terminalState.historyIndex - 1;
-        setTerminalState({
-          ...terminalState,
-          historyIndex: newIndex,
-          input: terminalState.commandHistory[terminalState.commandHistory.length - 1 - newIndex]
-        });
-      } else if (terminalState.historyIndex === 0) {
-        setTerminalState({
-          ...terminalState,
-          historyIndex: -1,
-          input: ''
-        });
-      }
+  /**
+   * Render the Terminal component with proper error handling
+   */
+  const renderTerminal = (window) => {
+    try {
+      return (
+        <Terminal
+          onClose={() => closeWindow(window.id)}
+          onMinimize={() => minimizeWindow(window.id)}
+          onMaximize={() => toggleFullscreen(window.id)}
+          initialUser={username}
+          initialHostname="berry"
+          initialDir="~"
+          isMaximized={window.isFullscreen}
+          inWindow={true}
+        />
+      );
+    } catch (error) {
+      console.error("Error rendering terminal:", error);
+      return (
+        <div className="terminal-error-container" style={{ 
+          backgroundColor: "#282a36",
+          color: "#f8f8f2",
+          padding: '12px',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          textAlign: 'center'
+        }}>
+          <div className="terminal-error-icon" style={{
+            color: "#ff5555",
+            fontSize: '48px',
+            marginBottom: '16px'
+          }}>
+            <i className="fas fa-exclamation-triangle"></i>
+          </div>
+          <div className="terminal-error-title" style={{
+            color: "#ff5555",
+            fontSize: '18px',
+            fontWeight: 'bold',
+            marginBottom: '8px'
+          }}>
+            Terminal Error
+          </div>
+          <div className="terminal-error-message" style={{
+            marginBottom: '16px'
+          }}>
+            {error?.message || 'Unknown error occurred while rendering the terminal'}
+          </div>
+          <button 
+            onClick={() => closeWindow(window.id)}
+            style={{
+              backgroundColor: '#ff6b6b',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            Close Window
+          </button>
+        </div>
+      );
     }
-    else if (e.key === 'Tab') {
-      // Prevent tab from changing focus
-      e.preventDefault();
-      // Could implement tab completion here
-    }
-  };
-
-  // Function to handle terminal input
-  const handleTerminalInput = (input) => {
-    // Add input to history
-    const newHistory = [...terminalState.history, `${terminalState.currentDir}$ ${input}`];
-    
-    // Parse command and arguments
-    const [command, ...args] = input.trim().split(' ');
-    
-    // Execute command
-    switch (command.toLowerCase()) {
-      case 'help':
-        newHistory.push('Available commands:\nhelp - Show this help message\nls - List files in current directory\ncd - Change directory\nclear - Clear terminal\necho - Print text\ndate - Show current date and time');
-        break;
-        
-      case 'ls':
-        // Get current directory contents
-        let output = 'Contents of directory:';
-        const currentDirItems = fileSystem.root.children;
-        currentDirItems.forEach(item => {
-          output += `\n${item.type === 'folder' ? 'dir' : 'file'}  ${item.name}`;
-        });
-        newHistory.push(output);
-        break;
-        
-      case 'cd':
-        if (args.length === 0 || args[0] === '~' || args[0] === '/') {
-          newHistory.push('Changed to home directory');
-          setTerminalState(prev => ({ ...prev, currentDir: '~' }));
-        } else {
-          // For simplicity, just acknowledge the command
-          newHistory.push(`Changed to ${args[0]}`);
-          setTerminalState(prev => ({ ...prev, currentDir: args[0] }));
-        }
-        break;
-        
-      case 'clear':
-        return { currentDir: terminalState.currentDir, history: [], input: '' };
-        
-      case 'echo':
-        newHistory.push(args.join(' '));
-        break;
-        
-      case 'date':
-        newHistory.push(new Date().toString());
-        break;
-        
-      default:
-        newHistory.push(`Command not found: ${command}`);
-    }
-    
-    return { currentDir: terminalState.currentDir, history: newHistory, input: '' };
   };
 
   // Add browserState definition near other state variables
@@ -1082,11 +1068,55 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
     };
   }, [handleProxyNavigation]);
 
-  // Add browser navigation functions
+  // Fix the handleIframeLoad function to update URL in address bar
+  const handleIframeLoad = () => {
+    try {
+      // Get the iframe element
+      const iframe = document.querySelector('.browser-content iframe');
+      if (iframe) {
+        // Try to get the current URL from the iframe if possible
+        const iframeUrl = iframe.contentWindow.location.href;
+        if (iframeUrl && iframeUrl !== 'about:blank') {
+          // Update the browser state with the actual URL
+          setBrowserState(prev => ({
+            ...prev,
+            inputUrl: iframeUrl,
+            isLoading: false,
+            error: null
+          }));
+        } else {
+          // Just update loading state if we can't get the URL
+          setBrowserState(prev => ({
+            ...prev,
+            isLoading: false,
+            error: null
+          }));
+        }
+      } else {
+        // Just update loading state if iframe isn't found
+        setBrowserState(prev => ({
+          ...prev,
+          isLoading: false,
+          error: null
+        }));
+      }
+    } catch (error) {
+      // Handle any security errors that might occur when trying to access iframe content
+      console.log("Could not access iframe URL due to security restrictions");
+      setBrowserState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: null
+      }));
+    }
+  };
+
+  // Improve browser navigation functions
   const browserGoBack = () => {
     if (browserState.currentIndex > 0) {
       const newIndex = browserState.currentIndex - 1;
       const previousUrl = browserState.history[newIndex];
+      
       setBrowserState(prev => ({
         ...prev,
         url: previousUrl,
@@ -1095,6 +1125,9 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
         isLoading: true,
         error: null
       }));
+      
+      // This logs the navigation for debugging
+      console.log(`Navigating back to: ${previousUrl}, index: ${newIndex}`);
     }
   };
 
@@ -1102,6 +1135,7 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
     if (browserState.currentIndex < browserState.history.length - 1) {
       const newIndex = browserState.currentIndex + 1;
       const nextUrl = browserState.history[newIndex];
+      
       setBrowserState(prev => ({
         ...prev,
         url: nextUrl,
@@ -1110,6 +1144,9 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
         isLoading: true,
         error: null
       }));
+      
+      // This logs the navigation for debugging
+      console.log(`Navigating forward to: ${nextUrl}, index: ${newIndex}`);
     }
   };
 
@@ -1120,14 +1157,6 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
       error: null
     }));
     // This will trigger a re-render which will reload the iframe
-  };
-
-  const handleIframeLoad = () => {
-    setBrowserState(prev => ({
-      ...prev,
-      isLoading: false,
-      error: null
-    }));
   };
 
   const handleIframeError = () => {
@@ -1287,364 +1316,413 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
   };
 
   const renderWindow = (window) => {
-    if (window.content === 'file-explorer') {
-      // Navigate to a folder in the file system
-      const folderId = getCurrentFolder(window.id) || 'root';
-      const folderContents = getFolderContents(folderId);
-      
-      return (
-        <div className="file-explorer">
-          <div className="file-explorer-toolbar">
-            <div className="file-explorer-nav">
+    try {
+      if (window.content === 'file-explorer') {
+        // Navigate to a folder in the file system
+        const folderId = getCurrentFolder(window.id) || 'root';
+        const folderContents = getFolderContents(folderId);
+        
+        return (
+          <div className="file-explorer">
+            <div className="file-explorer-toolbar">
+              <div className="file-explorer-nav">
+                <button 
+                  onClick={() => navigateBack(window.id)} 
+                  disabled={!fileHistory[window.id] || fileHistory[window.id].currentIndex === 0}
+                >
+                  <i className="fas fa-arrow-left"></i>
+                </button>
+                <button 
+                  onClick={() => navigateForward(window.id)} 
+                  disabled={!fileHistory[window.id] || fileHistory[window.id].currentIndex === fileHistory[window.id].history.length - 1}
+                >
+                  <i className="fas fa-arrow-right"></i>
+                </button>
+                <button onClick={() => navigateUp(window.id)}>
+                  <i className="fas fa-arrow-up"></i>
+                </button>
+              </div>
+              
+              <div className="file-explorer-path">
+                {getPathName(folderId)}
+              </div>
+              
+              <div className="file-explorer-actions">
+                <button onClick={() => createNewFile()}>
+                  <i className="fas fa-file-alt"></i> New File
+                </button>
+                <button onClick={() => createNewFolder()}>
+                  <i className="fas fa-folder-plus"></i> New Folder
+                </button>
+              </div>
+            </div>
+            
+            <div 
+              className="file-explorer-contents" 
+              onContextMenu={(e) => handleFolderContextMenu(e, folderId)}
+            >
+              {folderContents.length === 0 ? (
+                <div className="empty-folder">
+                  <i className="fas fa-folder-open"></i>
+                  <p>This folder is empty</p>
+                </div>
+              ) : (
+                folderContents.map(item => (
+                  <div 
+                    key={item.id}
+                    className="file-item"
+                    onDoubleClick={() => {
+                      if (item.type === 'folder') {
+                        navigateToNestedFolder(window.id, item.id);
+                      } else {
+                        handleIconDoubleClick(item);
+                      }
+                    }}
+                    onContextMenu={(e) => {
+                      e.stopPropagation();
+                      handleContextMenu(e, item.id);
+                    }}
+                  >
+                    <i className={`fas fa-${item.icon || (item.type === 'folder' ? 'folder' : 'file-alt')}`}></i>
+                    
+                    {renamingItem === item.id ? (
+                      <input
+                        ref={renameInputRef}
+                        type="text"
+                        className="rename-input"
+                        defaultValue={item.name}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleRenameSave(item.id, e.target.value);
+                          } else if (e.key === 'Escape') {
+                            handleRenameCancel();
+                          }
+                        }}
+                        onBlur={(e) => handleRenameSave(item.id, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span>{item.name}</span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      } else if (window.content === 'settings') {
+        return (
+          <Settings 
+            username={username}
+            wallpaper={wallpaper}
+            onWallpaperChange={onWallpaperChange}
+            onUsernameChange={(newUsername) => {
+              // Handle username change
+              showNotification(`Username updated to ${newUsername}`, 'success');
+              // Add any additional logic needed for username change
+            }}
+            onPasswordChange={(newPassword) => {
+              // Handle password change
+              showNotification('Password updated successfully', 'success');
+              // Add any additional logic needed for password change
+            }}
+          />
+        );
+      } else if (window.content === 'browser') {
+        return (
+          <div className="browser-container">
+            <div className="browser-toolbar">
               <button 
-                onClick={() => navigateBack(window.id)} 
-                disabled={!fileHistory[window.id] || fileHistory[window.id].currentIndex === 0}
+                onClick={() => browserGoBack()} 
+                disabled={browserState.currentIndex <= 0}
+                className="browser-button"
               >
                 <i className="fas fa-arrow-left"></i>
               </button>
               <button 
-                onClick={() => navigateForward(window.id)} 
-                disabled={!fileHistory[window.id] || fileHistory[window.id].currentIndex === fileHistory[window.id].history.length - 1}
+                onClick={() => browserGoForward()} 
+                disabled={browserState.currentIndex >= browserState.history.length - 1}
+                className="browser-button"
               >
                 <i className="fas fa-arrow-right"></i>
               </button>
-              <button onClick={() => navigateUp(window.id)}>
-                <i className="fas fa-arrow-up"></i>
+              <button 
+                onClick={() => browserRefresh()} 
+                className="browser-button"
+              >
+                <i className="fas fa-redo"></i>
+              </button>
+              
+              <form onSubmit={handleBrowserNavigation} className="browser-address-bar">
+                <input 
+                  type="text" 
+                  value={browserState.inputUrl}
+                  onChange={(e) => setBrowserState({...browserState, inputUrl: e.target.value})}
+                  placeholder="Enter URL or search"
+                />
+                <button type="submit"><i className="fas fa-arrow-right"></i></button>
+              </form>
+              
+              <button 
+                onClick={toggleProxyMode}
+                className={`browser-button ${browserState.proxyMode ? 'active' : ''}`}
+                title={browserState.proxyMode ? "Disable proxy" : "Enable proxy"}
+              >
+                <i className="fas fa-shield-alt"></i>
+              </button>
+              
+              <button 
+                onClick={() => openInExternalBrowser(browserState.url)}
+                className="browser-button"
+                title="Open in external browser"
+              >
+                <i className="fas fa-external-link-alt"></i>
               </button>
             </div>
             
-            <div className="file-explorer-path">
-              {getPathName(folderId)}
-            </div>
-            
-            <div className="file-explorer-actions">
-              <button onClick={() => createNewFile()}>
-                <i className="fas fa-file-alt"></i> New File
-              </button>
-              <button onClick={() => createNewFolder()}>
-                <i className="fas fa-folder-plus"></i> New Folder
-              </button>
+            <div className="browser-content">
+              {browserState.isLoading && (
+                <div className="browser-loading">
+                  <div className="loading-spinner"></div>
+                  <span>Loading...</span>
+                </div>
+              )}
+              
+              {browserState.error ? (
+                <div className="browser-error">
+                  <i className="fas fa-exclamation-triangle"></i>
+                  <h3>Couldn't load the page</h3>
+                  <p>{browserState.error}</p>
+                  <div className="browser-error-actions">
+                    <button onClick={() => browserRefresh()}>Try Again</button>
+                    <button onClick={() => openInExternalBrowser(browserState.url)}>
+                      Open in External Browser
+                    </button>
+                  </div>
+                </div>
+              ) : browserState.url ? (
+                <iframe 
+                  src={browserState.proxyMode ? getProxyUrl(browserState.url) : browserState.url}
+                  title="Browser Content"
+                  onLoad={handleIframeLoad}
+                  onError={handleIframeError}
+                  sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
+                  referrerPolicy="no-referrer"
+                ></iframe>
+              ) : (
+                <div className="browser-home">
+                  <div className="browser-home-content">
+                    <div className="browser-logo">
+                      <i className="fas fa-globe"></i>
+                      <h1>BerryOS Browser</h1>
+                    </div>
+                    <div className="browser-search-box">
+                      <form onSubmit={handleBrowserNavigation}>
+                        <input 
+                          type="text" 
+                          value={browserState.inputUrl}
+                          onChange={(e) => setBrowserState({...browserState, inputUrl: e.target.value})}
+                          placeholder="Search or enter URL"
+                          autoFocus
+                        />
+                        <button type="submit">
+                          <i className="fas fa-search"></i>
+                        </button>
+                      </form>
+                    </div>
+                    <div className="browser-quick-links">
+                      <div className="quick-link" onClick={() => handleQuickLink('google.com')}>
+                        <i className="fab fa-google"></i>
+                        <span>Google</span>
+                      </div>
+                      <div className="quick-link" onClick={() => handleQuickLink('youtube.com')}>
+                        <i className="fab fa-youtube"></i>
+                        <span>YouTube</span>
+                      </div>
+                      <div className="quick-link" onClick={() => handleQuickLink('github.com')}>
+                        <i className="fab fa-github"></i>
+                        <span>GitHub</span>
+                      </div>
+                      <div className="quick-link" onClick={() => handleQuickLink('wikipedia.org')}>
+                        <i className="fab fa-wikipedia-w"></i>
+                        <span>Wikipedia</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+        );
+      } else if (window.content === 'terminal') {
+        // Terminal window content
+        return renderTerminal(window);
+      } else if (window.content === 'notepad') {
+        // Basic stateful component for the notepad
+        const NotepadEditor = () => {
+          // Get file info
+          let fileId = null;
+          let fileName = "Untitled";
+          let initialContent = "";
           
-          <div 
-            className="file-explorer-contents" 
-            onContextMenu={(e) => handleFolderContextMenu(e, folderId)}
-          >
-            {folderContents.length === 0 ? (
-              <div className="empty-folder">
-                <i className="fas fa-folder-open"></i>
-                <p>This folder is empty</p>
-              </div>
-            ) : (
-              folderContents.map(item => (
-                <div 
-                  key={item.id}
-                  className="file-item"
-                  onDoubleClick={() => {
-                    if (item.type === 'folder') {
-                      navigateToNestedFolder(window.id, item.id);
-                    } else {
-                      handleIconDoubleClick(item);
-                    }
-                  }}
-                  onContextMenu={(e) => {
-                    e.stopPropagation();
-                    handleContextMenu(e, item.id);
-                  }}
-                >
-                  <i className={`fas fa-${item.icon || (item.type === 'folder' ? 'folder' : 'file-alt')}`}></i>
+          // Get file ID
+          if (window.fileId) {
+            fileId = window.fileId;
+            // If it starts with file-view-, remove that prefix
+            if (typeof fileId === 'string' && fileId.startsWith('file-view-')) {
+              fileId = fileId.replace('file-view-', '');
+            }
+          }
+          
+          // Try to get content from existing data
+          try {
+            // First check window.fileContent
+            if (window.fileContent !== undefined) {
+              initialContent = String(window.fileContent || '');
+            } 
+            // Otherwise try to find the file in the file system
+            else if (fileId) {
+              const result = findItem(fileId, fileSystem.root);
+              
+              if (result && result.item) {
+                // Get file name and content
+                fileName = result.item.name || "Untitled";
+                initialContent = String(result.item.content || '');
+              } else {
+                console.error(`File not found in system: ${fileId}`);
+              }
+            }
+          } catch (error) {
+            console.error("Error loading file content:", error);
+            initialContent = '';
+          }
+          
+          // State for the editor
+          const [content, setContent] = useState(initialContent);
+          
+          // Handle saving the file
+          const handleSave = () => {
+            try {
+              if (fileId) {
+                // Find the file and update its content
+                setFileSystem(prev => {
+                  const updatedSystem = {...prev};
+                  const result = findItem(fileId, updatedSystem.root);
                   
-                  {renamingItem === item.id ? (
-                    <input
-                      ref={renameInputRef}
-                      type="text"
-                      className="rename-input"
-                      defaultValue={item.name}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          handleRenameSave(item.id, e.target.value);
-                        } else if (e.key === 'Escape') {
-                          handleRenameCancel();
-                        }
-                      }}
-                      onBlur={(e) => handleRenameSave(item.id, e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <span>{item.name}</span>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      );
-    } else if (window.content === 'settings') {
-      return (
-        <div className="settings-container">
-          <div className="settings-sidebar">
-            <div className="settings-nav-item active">
-              <i className="fas fa-palette"></i>
-              <span>Appearance</span>
-            </div>
-            <div className="settings-nav-item">
-              <i className="fas fa-user"></i>
-              <span>Account</span>
-            </div>
-            <div className="settings-nav-item">
-              <i className="fas fa-bell"></i>
-              <span>Notifications</span>
-            </div>
-            <div className="settings-nav-item">
-              <i className="fas fa-info-circle"></i>
-              <span>About</span>
-            </div>
-          </div>
+                  if (result && result.item) {
+                    result.item.content = content;
+                    showNotification(`Saved ${result.item.name}`, 'success');
+                    return updatedSystem;
+                  } else {
+                    showNotification('Error: File not found', 'error');
+                    return prev;
+                  }
+                });
+              } else {
+                // Create a new file 
+                const newFileId = `file-${Date.now()}`;
+                const newFileName = 'Untitled.txt';
+                
+                const newFile = {
+                  id: newFileId,
+                  name: newFileName,
+                  type: 'file',
+                  icon: 'file-alt',
+                  content: content,
+                  parent: 'root'
+                };
+                
+                // Add the file to the file system
+                setFileSystem(prev => {
+                  const updatedSystem = {...prev};
+                  updatedSystem.root.children = [...(updatedSystem.root.children || []), newFile];
+                  return updatedSystem;
+                });
+                
+                // Update window to point to the new file
+                setWindows(prevWindows => prevWindows.map(w => {
+                  if (w.id === window.id) {
+                    return {
+                      ...w,
+                      fileId: newFileId,
+                      title: newFileName,
+                    };
+                  }
+                  return w;
+                }));
+                
+                // Update local fileId
+                fileId = newFileId;
+                
+                showNotification('New file created and saved', 'success');
+              }
+            } catch (error) {
+              console.error("Error saving file:", error);
+              showNotification(`Error: ${error.message || 'Failed to save file'}`, 'error');
+            }
+          };
           
-          <div className="settings-content">
-            <div className="settings-section">
-              <h2>Appearance Settings</h2>
-              
-              <div className="settings-option">
-                <label>Desktop Background</label>
-                <div className="wallpaper-options">
-                  <div 
-                    className={`wallpaper-option ${wallpaper === '/wallpapers/default.jpg' ? 'active' : ''}`}
-                    onClick={() => onWallpaperChange('/wallpapers/default.jpg')}
-                  >
-                    <img src="/wallpapers/default.jpg" alt="Default Wallpaper" />
-                    <span>Default</span>
-                  </div>
-                  <div 
-                    className={`wallpaper-option ${wallpaper === '/wallpapers/mountains.jpg' ? 'active' : ''}`}
-                    onClick={() => onWallpaperChange('/wallpapers/mountains.jpg')}
-                  >
-                    <img src="/wallpapers/mountains.jpg" alt="Mountains Wallpaper" />
-                    <span>Mountains</span>
-                  </div>
-                  <div 
-                    className={`wallpaper-option ${wallpaper === '/wallpapers/abstract.jpg' ? 'active' : ''}`}
-                    onClick={() => onWallpaperChange('/wallpapers/abstract.jpg')}
-                  >
-                    <img src="/wallpapers/abstract.jpg" alt="Abstract Wallpaper" />
-                    <span>Abstract</span>
-                  </div>
-                </div>
+          return (
+            <div className="notepad-container">
+              <div className="notepad-toolbar">
+                <button 
+                  onClick={handleSave}
+                  className="notepad-save-btn"
+                >
+                  <i className="fas fa-save"></i> Save
+                </button>
               </div>
-              
-              <div className="settings-option">
-                <label>Theme</label>
-                <select className="theme-select">
-                  <option value="dark">Dark Theme</option>
-                  <option value="light">Light Theme</option>
-                  <option value="system">Use System Setting</option>
-                </select>
-              </div>
-              
-              <div className="settings-option">
-                <label>Username</label>
-                <div className="settings-input-group">
-                  <input type="text" defaultValue={username} placeholder="Enter username" />
-                  <button className="settings-save-btn">Save</button>
-                </div>
-              </div>
-              
-              <div className="settings-option">
-                <label>Password</label>
-                <div className="settings-input-group">
-                  <input type="password" placeholder="••••••••" />
-                  <button className="settings-save-btn">Change</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    } else if (window.content === 'browser') {
-      return (
-        <div className="browser-container">
-          <div className="browser-toolbar">
-            <button 
-              onClick={() => browserGoBack()} 
-              disabled={browserState.currentIndex <= 0}
-              className="browser-button"
-            >
-              <i className="fas fa-arrow-left"></i>
-            </button>
-            <button 
-              onClick={() => browserGoForward()} 
-              disabled={browserState.currentIndex >= browserState.history.length - 1}
-              className="browser-button"
-            >
-              <i className="fas fa-arrow-right"></i>
-            </button>
-            <button 
-              onClick={() => browserRefresh()} 
-              className="browser-button"
-            >
-              <i className="fas fa-redo"></i>
-            </button>
-            
-            <form onSubmit={handleBrowserNavigation} className="browser-address-bar">
-              <input 
-                type="text" 
-                value={browserState.inputUrl}
-                onChange={(e) => setBrowserState({...browserState, inputUrl: e.target.value})}
-                placeholder="Enter URL or search"
-              />
-              <button type="submit"><i className="fas fa-arrow-right"></i></button>
-            </form>
-            
-            <button 
-              onClick={toggleProxyMode}
-              className={`browser-button ${browserState.proxyMode ? 'active' : ''}`}
-              title={browserState.proxyMode ? "Disable proxy" : "Enable proxy"}
-            >
-              <i className="fas fa-shield-alt"></i>
-            </button>
-            
-            <button 
-              onClick={() => openInExternalBrowser(browserState.url)}
-              className="browser-button"
-              title="Open in external browser"
-            >
-              <i className="fas fa-external-link-alt"></i>
-            </button>
-          </div>
-          
-          <div className="browser-content">
-            {browserState.isLoading && (
-              <div className="browser-loading">
-                <div className="loading-spinner"></div>
-                <span>Loading...</span>
-              </div>
-            )}
-            
-            {browserState.error ? (
-              <div className="browser-error">
-                <i className="fas fa-exclamation-triangle"></i>
-                <h3>Couldn't load the page</h3>
-                <p>{browserState.error}</p>
-                <div className="browser-error-actions">
-                  <button onClick={() => browserRefresh()}>Try Again</button>
-                  <button onClick={() => openInExternalBrowser(browserState.url)}>
-                    Open in External Browser
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <iframe 
-                src={browserState.proxyMode ? getProxyUrl(browserState.url) : browserState.url}
-                title="Browser Content"
-                onLoad={handleIframeLoad}
-                onError={handleIframeError}
-                sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
-                referrerPolicy="no-referrer"
-              ></iframe>
-            )}
-          </div>
-        </div>
-      );
-    } else if (window.content === 'terminal') {
-      return (
-        <div 
-          className="terminal-container"
-          style={{
-            backgroundColor: terminalStyles.background,
-            color: terminalStyles.textColor,
-            fontFamily: terminalStyles.fontFamily,
-            fontSize: terminalStyles.fontSize
-          }}
-        >
-          <div className="terminal-output">
-            {terminalState.history.map((line, i) => (
-              <div key={i} className="terminal-line">{line}</div>
-            ))}
-            <div className="terminal-input-line">
-              <span className="terminal-prompt">
-                <span style={{ color: terminalStyles.promptUserColor }}>berry</span>
-                <span>@</span>
-                <span style={{ color: terminalStyles.promptHostColor }}>berry-os</span>
-                <span>:</span>
-                <span style={{ color: terminalStyles.promptPathColor }}>{terminalState.currentDir}</span>
-                <span style={{ color: terminalStyles.promptSymbolColor }}>$ </span>
-              </span>
-              <input
-                type="text"
-                className="terminal-input"
-                value={terminalState.input}
-                onChange={(e) => setTerminalState({...terminalState, input: e.target.value})}
-                onKeyDown={handleTerminalKeyDown}
+              <textarea
+                className="notepad-editor"
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Type here..."
+                spellCheck="false"
                 autoFocus
               />
             </div>
-          </div>
-        </div>
-      );
-    } else if (window.content === 'notepad') {
-      // Check if we have a specific file to edit
-      let initialContent = '';
-      let fileId = window.fileId || null;
-      
-      if (window.fileContent !== undefined) {
-        initialContent = window.fileContent;
-      } else if (fileId) {
-        // Find file's content in file system
-        const result = findItem(fileId, fileSystem.root);
-        if (result) {
-          initialContent = result.item.content || '';
+          );
+        };
+        
+        // Return the notepad component
+        try {
+          return <NotepadEditor />;
+        } catch (error) {
+          console.error("Failed to render notepad:", error);
+          return (
+            <div className="window-content">
+              <div className="default-window-content error-content">
+                <i className="fas fa-exclamation-triangle"></i>
+                <p>Error loading the text editor</p>
+                <p className="error-details">{error.message}</p>
+                <button onClick={() => closeWindow(window.id)}>Close Window</button>
+              </div>
+            </div>
+          );
         }
       }
       
-      // State for edited content
-      const [editorContent, setEditorContent] = useState(initialContent);
-      
-      // When window.fileContent changes, update editor content
-      useEffect(() => {
-        if (window.fileContent !== undefined) {
-          setEditorContent(window.fileContent);
-        }
-      }, [window.fileContent]);
-      
+      // Default content (fallback)
       return (
-        <div className="notepad-container">
-          <div className="notepad-toolbar">
-            <button 
-              onClick={() => {
-                if (fileId) {
-                  saveFile(fileId, editorContent);
-                } else {
-                  // Simple notification for when there's no file associated
-                  showNotification('Document saved');
-                }
-              }} 
-              className="notepad-save-btn"
-            >
-              <i className="fas fa-save"></i> Save
-            </button>
+        <div className="window-content">
+          <div className="default-window-content">
+            <i className="fas fa-exclamation-circle"></i>
+            <p>Content cannot be displayed.</p>
           </div>
-          <textarea
-            className="notepad-editor"
-            value={editorContent}
-            onChange={(e) => setEditorContent(e.target.value)}
-            spellCheck="false"
-            autoFocus
-          />
+        </div>
+      );
+    } catch (error) {
+      console.error('Error rendering window:', error);
+      return (
+        <div className="window-content">
+          <div className="default-window-content error-content">
+            <i className="fas fa-exclamation-triangle"></i>
+            <p>An error occurred while displaying this window.</p>
+            <button onClick={() => closeWindow(window.id)}>Close Window</button>
+          </div>
         </div>
       );
     }
-    
-    // Default content (fallback)
-    return (
-      <div className="window-content">
-        <div className="default-window-content">
-          <i className="fas fa-exclamation-circle"></i>
-          <h3>Content Not Available</h3>
-          <p>The requested window content could not be displayed.</p>
-        </div>
-      </div>
-    );
   };
 
   // Keyboard shortcut for fullscreen toggle (F11) and exit (ESC)
@@ -1666,6 +1744,86 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
     };
   }, [activeWindow, fullscreenWindow]);
 
+  // Fix the quick links to properly navigate
+  const handleQuickLink = (url) => {
+    // Prepare full URL with https:// if needed
+    const fullUrl = url.startsWith('http') ? url : `https://${url}`;
+    
+    // Update browser state with the URL
+    setBrowserState(prev => {
+      // Create new history entry
+      const newHistory = prev.history.slice(0, prev.currentIndex + 1);
+      newHistory.push(fullUrl);
+      
+      return {
+        ...prev,
+        url: fullUrl,
+        inputUrl: url, // Keep the display version simple
+        history: newHistory,
+        currentIndex: newHistory.length - 1,
+        isLoading: true
+      };
+    });
+  };
+
+  // Add keydown event listener for keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ctrl+L to lock screen
+      if (e.ctrlKey && e.key === 'l') {
+        e.preventDefault();
+        onLock();
+      }
+      
+      // Handle existing keyboard shortcuts
+      if (e.key === 'Escape') {
+        // Close context menu if open
+        setContextMenu(prev => ({ ...prev, visible: false }));
+        
+        // Cancel rename if active
+        if (renamingItem) {
+          handleRenameCancel();
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onLock, renamingItem]);
+
+  // Add notification on component mount
+  useEffect(() => {
+    // Show keyboard shortcut notification after a short delay
+    const timer = setTimeout(() => {
+      showNotification('Press Ctrl+L to lock the screen', 'info');
+    }, 2000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Add power menu state
+  const [powerMenuVisible, setPowerMenuVisible] = useState(false);
+  const powerMenuRef = useRef(null);
+
+  // Close power menu when clicking outside of it
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (powerMenuRef.current && !powerMenuRef.current.contains(event.target)) {
+        setPowerMenuVisible(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Toggle power menu
+  const togglePowerMenu = () => {
+    setPowerMenuVisible(prev => !prev);
+  };
+
   return (
     <div 
       className="desktop" 
@@ -1675,23 +1833,21 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
     >
       {/* Desktop icons */}
       <div className="desktop-icons">
-        {icons.map(icon => (
-          <div 
+        {icons.map((icon) => (
+          <div
             key={icon.id}
-            className="desktop-icon"
+            className={`desktop-icon ${renamingItem === icon.id ? 'renaming' : ''}`}
             onDoubleClick={() => handleIconDoubleClick(icon)}
-            onContextMenu={(e) => {
-              console.log("Right-clicking icon:", icon.id, icon); // Debug
-              handleContextMenu(e, icon.id);
-            }}
+            onContextMenu={(e) => handleContextMenu(e, icon.id)}
           >
-            <i className={`fas fa-${icon.icon}`}></i>
+            <i className={`fas fa-${icon.icon} icon-image`}></i>
             {renamingItem === icon.id ? (
               <input
                 ref={renameInputRef}
                 type="text"
-                className="rename-input"
                 defaultValue={icon.name}
+                className="rename-input"
+                onBlur={() => handleRenameCancel()}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     handleRenameSave(icon.id, e.target.value);
@@ -1699,129 +1855,97 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
                     handleRenameCancel();
                   }
                 }}
-                onBlur={(e) => handleRenameSave(icon.id, e.target.value)}
-                onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <span>{icon.name}</span>
+              <div className="icon-label">{icon.name}</div>
             )}
           </div>
         ))}
       </div>
       
       {/* Windows */}
-      {windows.map(window => (
-        !window.minimized && (
+      {windows.map((window) => (
+        <div
+          key={window.id}
+          className={`window ${activeWindow === window.id ? 'active' : ''} ${window.minimized ? 'minimized' : ''} ${fullscreenWindow === window.id ? 'fullscreen' : ''}`}
+          style={{
+            left: window.position.x,
+            top: window.position.y,
+            width: fullscreenWindow === window.id ? '100%' : window.size.width,
+            height: fullscreenWindow === window.id ? '100%' : window.size.height,
+            zIndex: activeWindow === window.id ? 100 : window.zIndex
+          }}
+          onMouseDown={() => setActiveWindow(window.id)}
+        >
           <div 
-            id={`window-${window.id}`}
-            key={window.id}
-            className={`window ${activeWindow === window.id ? 'active' : ''} ${fullscreenWindow === window.id ? 'fullscreen' : ''}`}
-            style={{
-              left: window.position.x,
-              top: window.position.y,
-              width: window.size.width,
-              height: window.size.height,
-              zIndex: activeWindow === window.id ? 100 : window.zIndex
-            }}
-            onClick={() => setActiveWindow(window.id)}
+            className="window-titlebar"
+            onMouseDown={(e) => handleWindowDragStart(e, window.id)}
           >
-            <div 
-              className="window-titlebar"
-              onMouseDown={(e) => handleWindowDragStart(e, window.id)}
-            >
-              <div className="window-titlebar-left">
-                <i className={`fas fa-${window.icon}`}></i>
-                <span>{window.title}</span>
-              </div>
-              <div className="window-controls">
-                <button onClick={(e) => minimizeWindow(window.id, e)} title="Minimize">
-                  <i className="fas fa-minus"></i>
-                </button>
-                <button onClick={(e) => toggleFullscreen(window.id, e)} title={fullscreenWindow === window.id ? "Exit Fullscreen" : "Fullscreen"}>
-                  <i className={`fas ${fullscreenWindow === window.id ? 'fa-compress' : 'fa-expand'}`}></i>
-                </button>
-                <button onClick={(e) => closeWindow(window.id, e)} title="Close">
-                  <i className="fas fa-times"></i>
-                </button>
-              </div>
+            <div className="window-titlebar-left">
+              <i className={`fas fa-${window.icon}`}></i>
+              <span>{window.title}</span>
             </div>
-            <div className="window-content">
-              {renderWindow(window)}
-            </div>
-            
-            {/* Floating exit fullscreen button for better accessibility */}
-            {fullscreenWindow === window.id && (
-              <button 
-                className="floating-fullscreen-exit"
-                onClick={(e) => toggleFullscreen(window.id, e)}
-                title="Exit Fullscreen"
-              >
-                <i className="fas fa-compress"></i>
+            <div className="window-controls">
+              <button className="window-control minimize" onClick={(e) => minimizeWindow(window.id, e)}>
+                <i className="fas fa-minus"></i>
               </button>
-            )}
+              <button className="window-control maximize" onClick={(e) => toggleFullscreen(window.id, e)}>
+                <i className={`fas fa-${fullscreenWindow === window.id ? 'compress' : 'expand'}`}></i>
+              </button>
+              <button className="window-control close" onClick={(e) => closeWindow(window.id, e)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
           </div>
-        )
+          <div className="window-content">
+            {renderWindow(window)}
+          </div>
+        </div>
       ))}
       
       {/* Context Menu */}
       {contextMenu.visible && (
         <div 
           className="context-menu"
-          style={{
-            left: contextMenu.x,
-            top: contextMenu.y
-          }}
+          style={{ left: contextMenu.x, top: contextMenu.y }}
         >
-          {/* Always show these options */}
-          <div className="context-menu-item" onClick={createNewFolder}>
-            <i className="fas fa-folder-plus"></i>
-            <span>New Folder</span>
-          </div>
-          <div className="context-menu-item" onClick={createNewFile}>
-            <i className="fas fa-file-alt"></i>
-            <span>New File</span>
-          </div>
-          
-          {/* Show paste option when clipboard has content */}
-          {clipboard && (
-            <div className="context-menu-item" onClick={pasteItem}>
-              <i className="fas fa-paste"></i>
-              <span>Paste</span>
-            </div>
-          )}
-          
-          {/* Show file-specific options when right-clicking on a file/folder */}
-          {contextMenu.targetItem && contextMenu.targetItem.id !== 'root' && contextMenu.targetItem.type !== 'app' && (
+          {contextMenu.targetItem?.type === 'file' || (contextMenu.targetItem?.type === 'folder' && contextMenu.targetItem?.id !== 'root') ? (
             <>
-              <div className="context-menu-divider"></div>
               <div className="context-menu-item" onClick={renameItem}>
-                <i className="fas fa-edit"></i>
-                <span>Rename</span>
+                <i className="fas fa-edit"></i> Rename
               </div>
               <div className="context-menu-item" onClick={copyItem}>
-                <i className="fas fa-copy"></i>
-                <span>Copy</span>
+                <i className="fas fa-copy"></i> Copy
               </div>
               <div className="context-menu-item" onClick={cutItem}>
-                <i className="fas fa-cut"></i>
-                <span>Cut</span>
+                <i className="fas fa-cut"></i> Cut
               </div>
               <div className="context-menu-item" onClick={deleteItem}>
-                <i className="fas fa-trash-alt"></i>
-                <span>Delete</span>
+                <i className="fas fa-trash"></i> Delete
               </div>
+              <div className="context-menu-divider"></div>
             </>
-          )}
+          ) : null}
           
-          <div className="context-menu-divider"></div>
-          <div className="context-menu-item" onClick={() => setContextMenu({ ...contextMenu, visible: false })}>
-            <i className="fas fa-sync"></i>
-            <span>Refresh</span>
-          </div>
+          {contextMenu.targetId === 'root' || contextMenu.isInFolderView ? (
+            <>
+              <div className="context-menu-item" onClick={createNewFolder}>
+                <i className="fas fa-folder-plus"></i> New Folder
+              </div>
+              <div className="context-menu-item" onClick={createNewFile}>
+                <i className="fas fa-file"></i> New File
+              </div>
+              {clipboard && (
+                <div className="context-menu-item" onClick={pasteItem}>
+                  <i className="fas fa-paste"></i> Paste
+                </div>
+              )}
+            </>
+          ) : null}
         </div>
       )}
       
-      {/* Notification system */}
+      {/* Notification */}
       {notification && (
         <div className={`notification ${notification.type}`}>
           <div className="notification-content">
@@ -1831,10 +1955,23 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
         </div>
       )}
       
+      {/* Power Menu */}
+      {powerMenuVisible && (
+        <div className="power-menu" ref={powerMenuRef}>
+          <div className="power-menu-item" onClick={onLock}>
+            <i className="fas fa-lock"></i>
+            <span>Lock Screen</span>
+            <span className="shortcut">Ctrl+L</span>
+          </div>
+          <div className="power-menu-item" onClick={onLogout}>
+            <i className="fas fa-sign-out-alt"></i>
+            <span>Log Out</span>
+          </div>
+        </div>
+      )}
+      
       {/* Taskbar */}
-      <Taskbar 
-        username={username}
-        onLogout={onLogout}
+      <Taskbar
         openWindows={windows}
         activeWindow={activeWindow}
         onWindowClick={(id) => {
@@ -1845,6 +1982,11 @@ function Desktop({ username, onLogout, wallpaper, onWallpaperChange, setOpenWebs
             setActiveWindow(id);
           }
         }}
+        username={username}
+        onLogout={onLogout}
+        onLock={onLock}
+        onTogglePowerMenu={togglePowerMenu}
+        powerMenuVisible={powerMenuVisible}
       />
     </div>
   );

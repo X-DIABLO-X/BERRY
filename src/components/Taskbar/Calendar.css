@@ -1,7 +1,7 @@
 .calendar {
   position: absolute;
   top: 45px;
-  right: 10px;
+  right: 0px;
   width: 280px;
   background-color: rgba(30, 30, 30, 0.9);
   backdrop-filter: blur(10px);
@@ -91,4 +91,42 @@
   background-color: #0078d7;
   color: white;
   font-weight: bold;
+}
+
+.calendar-day.current-month {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.calendar-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 15px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.today-button {
+  background-color: rgba(0, 120, 215, 0.2);
+  border: 1px solid rgba(0, 120, 215, 0.4);
+  border-radius: 4px;
+  color: #0078d7;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.today-button:hover {
+  background-color: rgba(0, 120, 215, 0.3);
+}
+
+@keyframes calendarFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 } 

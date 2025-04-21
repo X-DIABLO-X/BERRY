@@ -27,14 +27,6 @@
   margin-top: 2px;
 }
 
-.calendar-wrapper {
-  position: absolute;
-  top: 40px;
-  right: 70px;
-  z-index: 1000;
-  animation: calendarFadeIn 0.2s ease forwards;
-}
-
 @keyframes calendarFadeIn {
   from {
     opacity: 0;

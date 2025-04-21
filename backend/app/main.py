@@ -206,6 +206,9 @@ def search():
             'q': q,
             'hl': 'en',  # Language
             'safe': 'active',  # Safe search
+            'pws': '0',  # Turn off personalized search
+            'nfpr': '1',  # Turn off auto-correction of spelling
+            'darkmode': '1',  # Enable dark mode
         }
         
         # Add any additional parameters from form or URL

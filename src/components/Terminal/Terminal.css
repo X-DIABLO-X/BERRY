@@ -1,0 +1,533 @@
+/* Modern Terminal Styling with Kali Linux-inspired design */
+.terminal-container {
+  background-color: #0d0d0d;
+  color: #f8f8f2;
+  border-radius: 6px;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 14px;
+  position: relative;
+  resize: both;
+  z-index: 100;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.terminal-maximized {
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 0;
+  z-index: 9999;
+}
+
+/* Terminal header - Kali Linux style */
+.terminal-header {
+  height: 32px;
+  background-color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  user-select: none;
+  border-bottom: 1px solid #333;
+  justify-content: space-between;
+}
+
+/* Window title - center aligned */
+.terminal-title {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  color: #ccc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: none; /* Hide the title with user@hostname */
+}
+
+/* Window controls - moved to right */
+.terminal-controls {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  padding-right: 5px;
+}
+
+.terminal-control {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+}
+
+.terminal-control:nth-child(1) {
+  background-color: #ff5f56;
+}
+
+.terminal-control:nth-child(2) {
+  background-color: #ffbd2e;
+}
+
+.terminal-control:nth-child(3) {
+  background-color: #27c93f;
+}
+
+.terminal-control:hover {
+  color: #333;
+}
+
+/* Terminal tabs container with tab add button */
+.terminal-tabs-area {
+  display: flex;
+  align-items: center;
+  flex-grow: 1;
+  margin-right: auto;
+  overflow: hidden;
+}
+
+/* Terminal tabs container */
+.terminal-tabs-container {
+  display: flex;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  flex-shrink: 0;
+}
+
+.terminal-tabs-container::-webkit-scrollbar {
+  display: none;
+}
+
+.terminal-tab {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 32px;
+  min-width: 120px;
+  max-width: 180px;
+  background-color: #1a1a1a;
+  border-right: 1px solid #333;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
+}
+
+.terminal-tab:hover {
+  background-color: #222;
+}
+
+.terminal-tab-active {
+  background-color: #0c0c0c;
+  border-bottom: none;
+}
+
+.terminal-tab-icon {
+  margin-right: 8px;
+  color: #bd93f9;
+}
+
+.terminal-tab-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+
+.terminal-tab-close {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+  margin-left: 5px;
+  opacity: 0.6;
+}
+
+.terminal-tab:hover .terminal-tab-close {
+  opacity: 1;
+}
+
+.terminal-tab-close:hover {
+  background-color: rgba(255, 90, 90, 0.2);
+  color: #ff5555;
+}
+
+/* Enhanced tab add button */
+.terminal-tab-add {
+
+  background-color: #1e1e1e;
+  border: none;
+  color: #50fa7b;
+  cursor: pointer;
+  height: 32px;
+  width: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  line-height: 1;
+  padding: 0;
+}
+
+.terminal-tab-add:hover {
+  background-color: #3a3a3a;
+}
+
+.terminal-tab-add svg {
+  color: #50fa7b;
+  width: 16px;
+  height: 16px;
+}
+
+/* Terminal output area */
+.terminal-output {
+  flex: 1;
+  padding: 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  word-break: break-word;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: #333 #0c0c0c;
+}
+
+/* Remove horizontal scrollbar specifically */
+.terminal-output::-webkit-scrollbar-horizontal {
+  display: none;
+}
+
+/* Terminal lines */
+.terminal-line {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 2px;
+  width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+.terminal-empty {
+  height: 14px;
+}
+
+.terminal-current-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  min-height: 18px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.terminal-prompt {
+  display: inline-flex;
+  white-space: nowrap;
+  margin-right: 5px;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.terminal-user {
+  color: #50fa7b;
+}
+
+.terminal-host {
+  color: #50fa7b;
+}
+
+.terminal-path {
+  color: #8be9fd;
+}
+
+.terminal-prompt-symbol {
+  color: #ff79c6;
+}
+
+.terminal-input-text {
+  color: #f8f8f2;
+  white-space: pre;
+  overflow: hidden;
+}
+
+/* Terminal cursor */
+.terminal-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background-color: #f8f8f2;
+  margin-left: 1px;
+  vertical-align: middle;
+  position: relative;
+  top: 0;
+}
+
+.terminal-cursor-blink {
+  animation: terminal-cursor-blink 1s infinite;
+}
+
+@keyframes terminal-cursor-blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+
+.terminal-hidden-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  height: 0;
+  width: 0;
+  z-index: -1;
+  border: none;
+  background: transparent;
+}
+
+/* Command styling */
+.terminal-command {
+  color: #f8f8f2;
+  text-align: left;
+}
+
+/* Output type styling */
+.terminal-error {
+  color: #ff5555;
+}
+
+.terminal-warning {
+  color: #ffb86c;
+}
+
+.terminal-success {
+  color: #50fa7b;
+}
+
+.terminal-info {
+  color: #bd93f9;
+}
+
+/* File types */
+.terminal-folder {
+  color: #8be9fd;
+}
+
+.terminal-file {
+  color: #f8f8f2;
+}
+
+.terminal-executable {
+  color: #50fa7b;
+}
+
+.terminal-symlink {
+  color: #ff79c6;
+}
+
+.terminal-hidden {
+  color: rgba(248, 248, 242, 0.5);
+}
+
+/* Selection style */
+.terminal-output ::selection {
+  background-color: rgba(189, 147, 249, 0.3);
+  color: #f8f8f2;
+}
+
+/* Animation for tab transitions */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { transform: translateY(-10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.terminal-line {
+  animation: fadeIn 0.2s ease;
+}
+
+.terminal-tab {
+  animation: slideIn 0.2s ease;
+}
+
+/* Typing simulation animation */
+@keyframes typing {
+  from { width: 0 }
+  to { width: 100% }
+}
+
+/* Terminal command history styling */
+.terminal-command {
+  color: #f8f8f2;
+  text-align: left;
+  width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-all;
+  white-space: pre-wrap;
+  padding: 2px 0;
+}
+
+.terminal-error,
+.terminal-success,
+.terminal-info,
+.terminal-warning,
+.terminal-empty-line {
+  text-align: left;
+  width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.terminal-error {
+  color: #ff5555;
+}
+
+.terminal-success {
+  color: #50fa7b;
+}
+
+.terminal-info {
+  color: #bd93f9;
+}
+
+.terminal-warning {
+  color: #ffb86c;
+}
+
+.terminal-empty-line {
+  height: 10px;
+}
+
+/* Dark mode optimizations */
+@media (prefers-color-scheme: dark) {
+  .terminal-container {
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.8);
+  }
+}
+
+/* Small screen adaptations */
+@media (max-width: 800px) {
+  .terminal-container {
+    width: 100%;
+    height: 400px;
+    border-radius: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .terminal-container {
+    width: 100%;
+    height: 350px;
+    border-radius: 0;
+  }
+  
+  .terminal-tabs-container {
+    max-width: calc(100% - 100px);
+  }
+  
+  .terminal-tab {
+    min-width: 80px;
+  }
+}
+
+/* Custom scrollbar for terminal output */
+.terminal-output::-webkit-scrollbar {
+  width: 8px;
+  height: 0; /* Hide horizontal scrollbar */
+}
+
+.terminal-output::-webkit-scrollbar-track {
+  background: #0c0c0c;
+}
+
+.terminal-output::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+
+.terminal-output::-webkit-scrollbar-thumb:hover {
+  background: #444;
+}
+
+/* Add a class for when terminal is inside a window */
+.in-window .terminal-controls {
+  display: none;
+}
+
+/* Adjust spacing when controls are hidden */
+.in-window .terminal-header {
+  padding-right: 10px;
+}
+
+/* Prevent duplicate rounded corners when inside window */
+.in-window.terminal-container {
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+}
+
+/* Add styles for links in terminal */
+.terminal-line a {
+  color: #8be9fd;
+  text-decoration: none;
+  border-bottom: 1px dotted #8be9fd;
+  padding-bottom: 1px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.terminal-line a:hover {
+  color: #50fa7b;
+  border-color: #50fa7b;
+}
+
+/* Improve font size for figlet art */
+.terminal-line.terminal-info pre,
+.terminal-line pre {
+  margin: 0;
+  padding: 0;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+/* Pre-formatted text (ASCII art) */
+pre {
+  margin: 0;
+  padding: 0;
+  font-family: 'Courier New', monospace !important;
+  white-space: pre;
+  display: block;
+} 

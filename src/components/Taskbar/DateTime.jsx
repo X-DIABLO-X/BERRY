@@ -52,7 +52,12 @@ const DateTime = () => {
     <div className="datetime" ref={dateTimeRef} onClick={toggleCalendar}>
       <div className="time">{formatTime()}</div>
       <div className="date">{formatDate()}</div>
-      {showCalendar && <Calendar currentDate={currentTime} />}
+      <div style={{ 
+        position: 'relative', 
+        animation: showCalendar ? 'calendarFadeIn 0.2s ease forwards' : 'none'
+      }}>
+        {showCalendar && <Calendar currentDate={currentTime} />}
+      </div>
     </div>
   );
 };

@@ -7,7 +7,10 @@ const Taskbar = ({
   activeWindow, 
   onWindowClick,
   onLogout,
-  username
+  onLock,
+  username,
+  onTogglePowerMenu,
+  powerMenuVisible
 }) => {
   // App buttons config
   const appButtons = [
@@ -50,12 +53,20 @@ const Taskbar = ({
       <div className="taskbar-right">
         <DateTime />
         <button 
-          className="taskbar-button logout-button"
-          onClick={onLogout}
-          title="Log out"
+          className="taskbar-button lock-button"
+          onClick={onLock}
+          title="Lock screen"
         >
-          <i className="fas fa-sign-out-alt"></i>
+          <i className="fas fa-lock"></i>
+        </button>
+        <button 
+          className="taskbar-button user-button"
+          onClick={onTogglePowerMenu}
+          title="User options"
+        >
+          <i className="fas fa-user-circle"></i>
           <span>{username}</span>
+          <i className={`fas fa-chevron-${powerMenuVisible ? 'up' : 'down'} dropdown-icon`}></i>
         </button>
       </div>
     </div>
