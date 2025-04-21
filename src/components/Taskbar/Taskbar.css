@@ -22,6 +22,14 @@
   gap: 8px;
   height: 100%;
   align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none; /* For Firefox */
+  -ms-overflow-style: none; /* For Internet Explorer and Edge */
+  padding-bottom: 2px;
+}
+
+.taskbar-left::-webkit-scrollbar {
+  display: none; /* For Chrome, Safari, and Opera */
 }
 
 .taskbar-right {
@@ -45,6 +53,8 @@
   transition: all 0.2s ease;
   font-size: 0.85rem;
   margin: 0 3px;
+  position: relative;
+  min-width: 40px;
 }
 
 .taskbar-button:hover {
@@ -62,6 +72,35 @@
   background: rgba(255, 255, 255, 0.2);
   color: white;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Style for minimized windows in taskbar */
+.taskbar-button:not(.active):not(.app-menu-button) {
+  background: rgba(255, 255, 255, 0.05);
+  opacity: 0.8;
+}
+
+/* Animation for taskbar button when window is minimized */
+@keyframes taskbarMinimize {
+  0% { transform: scale(1.1); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 0.8; }
+}
+
+.taskbar-button.minimized-window {
+  animation: taskbarMinimize 0.3s ease forwards;
+}
+
+/* Indicator dot for minimized windows */
+.taskbar-button:not(.active):not(.app-menu-button)::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 2px;
+  background-color: rgba(255, 255, 255, 0.5);
+  border-radius: 2px;
 }
 
 .taskbar-button i {

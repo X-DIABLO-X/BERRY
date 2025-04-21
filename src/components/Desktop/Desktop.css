@@ -144,6 +144,16 @@
   background-color: rgba(40, 40, 45, 1); /* Stronger background on hover */
 }
 
+/* Minimized window styles */
+.window.minimized {
+  transform: scale(0.1) translateY(500px);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: transform 0.3s ease, opacity 0.3s ease, visibility 0s linear 0.3s;
+  z-index: -1;
+}
+
 @keyframes windowOpen {
   from {
     transform: scale(0.95);
@@ -153,6 +163,54 @@
     transform: scale(1);
     opacity: 0.98;
   }
+}
+
+/* Window Loading State */
+.window-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(35, 35, 40, 0.95);
+  z-index: 10;
+  color: white;
+  gap: 15px;
+  font-size: 14px;
+}
+
+.window-loading .loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Animation for window restoring from taskbar */
+@keyframes windowRestore {
+  from {
+    transform: scale(0.1) translateY(500px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 0.98;
+  }
+}
+
+.window.restoring {
+  animation: windowRestore 0.3s ease forwards;
 }
 
 .window.active {

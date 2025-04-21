@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Desktop from './components/Desktop/Desktop';
 import Login from './components/Login/Login';
 import Loading from './components/Loading/Loading';
+import SplashScreen from './components/SplashScreen/SplashScreen';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Wallpaper1 from './assets/wallpapers/wallpaper1.jpg';
 import './App.css';
@@ -22,6 +23,23 @@ const AppContent = () => {
   const { isAuthenticated, isRegistered, isLoading, user, logout, lock } = useAuth();
   const [wallpaper, setWallpaper] = useState(user.wallpaper || Wallpaper1);
   const [error, setError] = useState(null);
+  const [showSplash, setShowSplash] = useState(() => {
+    // Check if this is the first load
+    return !localStorage.getItem('berry_splash_shown');
+  });
+
+  // Show splash screen for 2.5 seconds, but only on first load
+  useEffect(() => {
+    if (showSplash) {
+      const timer = setTimeout(() => {
+        setShowSplash(false);
+        // Set flag in localStorage to remember splash was shown
+        localStorage.setItem('berry_splash_shown', 'true');
+      }, 2500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [showSplash]);
 
   // Update wallpaper when user settings change
   useEffect(() => {
@@ -32,6 +50,11 @@ const AppContent = () => {
       setError("Failed to load wallpaper");
     }
   }, [user.wallpaper]);
+
+  // Show splash screen first
+  if (showSplash) {
+    return <SplashScreen />;
+  }
 
   // Error state
   if (error) {
@@ -44,7 +67,7 @@ const AppContent = () => {
     );
   }
 
-  // Show loading screen during initial load
+  // Show loading screen during authentication load
   if (isLoading) {
     return <Loading />;
   }

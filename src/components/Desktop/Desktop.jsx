@@ -414,12 +414,13 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       windowSize = { width: 700, height: 400 };
     }
     
-    // Create new window
+    // Create new window with isLoading state
     const newWindow = {
       id: appId,
       title: app.name,
       icon: app.icon,
       minimized: false,
+      isRestoring: true, // Start with loading state
       position: { 
         x: Math.max(50, Math.min(window.innerWidth - windowSize.width - 50, 100 + offset)),
         y: Math.max(50, Math.min(window.innerHeight - windowSize.height - 50, 100 + offset))
@@ -430,13 +431,26 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       zIndex: windows.length + 10
     };
     
+    // Add the window immediately
     setWindows([...windows, newWindow]);
     setActiveWindow(appId);
+    
+    // Give time for the window contents to render before removing loading state
+    setTimeout(() => {
+      setWindows(prevWindows => 
+        prevWindows.map(win => {
+          if (win.id === appId) {
+            return { ...win, isRestoring: false };
+          }
+          return win;
+        })
+      );
+    }, 500);
   };
   
   // Function to check if the proxy server is running
   const checkProxyServer = () => {
-    fetch('http://localhost:5000/status')
+    fetch('https://berry-3gan.onrender.com/status')
       .then(response => {
         if (response.ok) {
           // Server is running
@@ -445,7 +459,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       })
       .catch(error => {
         console.error("Proxy server not running:", error);
-        showNotification("Browser proxy server is not running. Some features will be limited.", "error");
+        showNotification("Deployed browser proxy server is currently unavailable. Some features will be limited.", "error");
       });
   };
   
@@ -463,6 +477,28 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
   // Function to minimize a window
   const minimizeWindow = (id, e) => {
     if (e) e.stopPropagation();
+    
+    // Get taskbar position for animation direction
+    const taskbarButton = document.querySelector(`.taskbar-button[title="${windows.find(w => w.id === id)?.title}"]`);
+    const windowEl = document.querySelector(`.window[data-id="${id}"]`);
+    
+    if (windowEl && taskbarButton) {
+      // Temporarily change transition to customize animation
+      windowEl.style.transition = 'transform 0.3s ease, opacity 0.3s ease, visibility 0s linear 0.3s';
+      
+      // Get taskbar position
+      const taskbarRect = taskbarButton.getBoundingClientRect();
+      const windowRect = windowEl.getBoundingClientRect();
+      
+      // Calculate direction towards taskbar
+      const translateX = taskbarRect.left - windowRect.left + (taskbarRect.width / 2 - windowRect.width / 2);
+      const translateY = taskbarRect.top - windowRect.top + (taskbarRect.height / 2 - windowRect.height / 2);
+      
+      // Apply custom transform
+      windowEl.style.transform = `scale(0.1) translate(${translateX}px, ${translateY}px)`;
+      windowEl.style.opacity = '0';
+    }
+    
     setWindows(windows.map(win => {
       if (win.id === id) {
         return { ...win, minimized: true };
@@ -479,13 +515,47 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
   
   // Function to restore a minimized window
   const restoreWindow = (id) => {
+    // Generate a unique key to force re-render
+    const renderKey = Date.now();
+    
+    // First mark the window as restoring in state
     setWindows(windows.map(win => {
       if (win.id === id) {
-        return { ...win, minimized: false };
+        return { 
+          ...win, 
+          minimized: false, 
+          isRestoring: true,
+          renderKey // Add a unique key to force re-render
+        };
       }
       return win;
     }));
+    
+    // Set as active window immediately
     setActiveWindow(id);
+    
+    // Find the window element in the DOM
+    const windowEl = document.querySelector(`.window[data-id="${id}"]`);
+    if (windowEl) {
+      // Add restoring class for animation
+      windowEl.classList.add('restoring');
+      
+      // Ensure content has time to fully render before completing animation
+      setTimeout(() => {
+        // Complete restoration by removing loading state
+        setWindows(prevWindows => prevWindows.map(win => {
+          if (win.id === id) {
+            return { ...win, isRestoring: false };
+          }
+          return win;
+        }));
+        
+        // Remove animation class after animation completes
+        if (windowEl) {
+          windowEl.classList.remove('restoring');
+        }
+      }, 400); // Extended animation duration
+    }
   };
   
   // Improved window drag functionality
@@ -584,11 +654,56 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       actualId = itemId.replace('folder-view-', '');
     }
     
+    // Special case for standard folders at root level
+    if (['documents', 'pictures', 'downloads'].includes(actualId)) {
+      const specialFolder = folder.children.find(child => child.id === actualId);
+      if (specialFolder) {
+        console.log(`Found special folder: ${specialFolder.name}`);
+        return { item: specialFolder, parent: folder };
+      }
+    }
+    
     // Check direct children first - more efficient
     for (const child of folder.children || []) {
       if (String(child.id) === actualId) {
         console.log(`Found item directly: ${child.name}`);
         return { item: child, parent: folder };
+      }
+    }
+    
+    // Now search special folders if not found in root direct children
+    if (folder === fileSystem.root) {
+      // Search in documents folder
+      const documents = folder.children.find(child => child.id === 'documents');
+      if (documents && documents.children) {
+        for (const child of documents.children) {
+          if (String(child.id) === actualId) {
+            console.log(`Found item in Documents: ${child.name}`);
+            return { item: child, parent: documents };
+          }
+        }
+      }
+      
+      // Search in pictures folder
+      const pictures = folder.children.find(child => child.id === 'pictures');
+      if (pictures && pictures.children) {
+        for (const child of pictures.children) {
+          if (String(child.id) === actualId) {
+            console.log(`Found item in Pictures: ${child.name}`);
+            return { item: child, parent: pictures };
+          }
+        }
+      }
+      
+      // Search in downloads folder
+      const downloads = folder.children.find(child => child.id === 'downloads');
+      if (downloads && downloads.children) {
+        for (const child of downloads.children) {
+          if (String(child.id) === actualId) {
+            console.log(`Found item in Downloads: ${child.name}`);
+            return { item: child, parent: downloads };
+          }
+        }
       }
     }
     
@@ -699,6 +814,8 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       parentId = contextMenu.targetId;
     }
     
+    console.log(`Creating new folder with ID ${newFolderId} in parent ${parentId}`);
+    
     // Check if we're trying to create on desktop vs in a folder
     const isDesktop = parentId === 'root';
     const targetLocation = isDesktop ? 'desktop' : 'file manager';
@@ -725,7 +842,15 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       // If target is root, add to root children
       if (parentId === 'root') {
         updatedSystem.root.children = [...updatedSystem.root.children, newFolder];
-      } else {
+      } 
+      // Handle special folders (documents, pictures, downloads)
+      else if (['documents', 'pictures', 'downloads'].includes(parentId)) {
+        const specialFolder = updatedSystem.root.children.find(child => child.id === parentId);
+        if (specialFolder) {
+          specialFolder.children = [...(specialFolder.children || []), newFolder];
+        }
+      }
+      else {
         // Find the target folder and add the new folder to its children
         const result = findItem(parentId, updatedSystem.root);
         if (result && result.item.type === 'folder') {
@@ -764,6 +889,8 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       parentId = contextMenu.targetId;
     }
     
+    console.log(`Creating new file with ID ${newFileId} in parent ${parentId}`);
+    
     // Check if we're trying to create on desktop vs in a folder
     const isDesktop = parentId === 'root';
     const targetLocation = isDesktop ? 'desktop' : 'file manager';
@@ -790,7 +917,15 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       // If target is root, add to root children
       if (parentId === 'root') {
         updatedSystem.root.children = [...updatedSystem.root.children, newFile];
-      } else {
+      }
+      // Handle special folders (documents, pictures, downloads)
+      else if (['documents', 'pictures', 'downloads'].includes(parentId)) {
+        const specialFolder = updatedSystem.root.children.find(child => child.id === parentId);
+        if (specialFolder) {
+          specialFolder.children = [...(specialFolder.children || []), newFile];
+        }
+      }
+      else {
         // Find the target folder and add the new file to its children
         const result = findItem(parentId, updatedSystem.root);
         if (result && result.item.type === 'folder') {
@@ -1023,6 +1158,16 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       return fileSystem.root.children || [];
     }
     
+    // Handle special folders directly
+    if (['documents', 'pictures', 'downloads'].includes(folderId)) {
+      // Find the folder from root children
+      const folder = fileSystem.root.children.find(item => item.id === folderId);
+      if (folder) {
+        return folder.children || [];
+      }
+      return [];
+    }
+    
     const result = findItem(folderId, fileSystem.root);
     if (result && result.item.type === 'folder') {
       return result.item.children || [];
@@ -1033,14 +1178,31 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
   
   // Initialize file explorer window with navigation state
   const initializeFileExplorerWindow = (windowId, initialLocation = 'root') => {
-    // Always start fresh with the specified location
-    setFileHistory(prev => ({
-      ...prev,
-      [windowId]: {
-        history: [initialLocation],
-        currentIndex: 0
-      }
-    }));
+    console.log(`Initializing explorer window ${windowId} at location ${initialLocation}`);
+    
+    // Check if this window exists and initialize its file history
+    if (windowId && !fileHistory[windowId]) {
+      setFileHistory(prev => ({
+        ...prev,
+        [windowId]: {
+          history: [initialLocation],
+          currentIndex: 0
+        }
+      }));
+      
+      // Ensure the window contents are properly loaded
+      setTimeout(() => {
+        // Find the window element
+        const windowEl = document.querySelector(`.window[data-id="${windowId}"]`);
+        if (windowEl) {
+          // Force a redraw if needed
+          windowEl.style.display = 'none';
+          // This forces a reflow/repaint
+          void windowEl.offsetHeight;
+          windowEl.style.display = 'flex';
+        }
+      }, 100);
+    }
   };
   
   // Get current folder ID for a file explorer window
@@ -1052,11 +1214,24 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
   
   // Navigate to a folder within the same file explorer window
   const navigateToFolder = (windowId, folderId) => {
+    console.log(`Navigation request: window=${windowId}, folder=${folderId}`);
+    
     // Make sure the window has file history initialized
     if (!fileHistory[windowId]) {
+      console.log(`Initializing file history for window ${windowId} with folder ${folderId}`);
       initializeFileExplorerWindow(windowId, folderId);
       return;
     }
+    
+    // Validate that the folder exists
+    const folderResult = findItem(folderId, fileSystem.root);
+    if (!folderResult || folderResult.item.type !== 'folder') {
+      console.error(`Cannot navigate to ${folderId}: folder not found or not a folder`);
+      showNotification('Error: Folder not found', 'error');
+      return;
+    }
+    
+    console.log(`Navigating to valid folder: ${folderResult.item.name}`);
     
     // Update navigation history
     setFileHistory(prev => {
@@ -1065,6 +1240,14 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       // If navigating from a point in history, truncate forward history
       const newHistory = history.slice(0, currentIndex + 1);
       newHistory.push(folderId);
+      
+      console.log(`Updated navigation history:`, {
+        windowId,
+        oldHistory: history,
+        newHistory,
+        oldIndex: currentIndex,
+        newIndex: newHistory.length - 1
+      });
       
       return {
         ...prev,
@@ -1122,6 +1305,12 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     // Get parent folder
     if (currentFolderId === 'root') return; // Already at root
     
+    // Handle special folders - they all go back to root
+    if (['documents', 'pictures', 'downloads'].includes(currentFolderId)) {
+      navigateToFolder(windowId, 'root');
+      return;
+    }
+    
     const result = findItem(currentFolderId, fileSystem.root);
     if (result && result.parent) {
       navigateToFolder(windowId, result.parent.id);
@@ -1131,6 +1320,11 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
   // Get path name for current location
   const getPathName = (folderId) => {
     if (folderId === 'root') return '/Home';
+    
+    // Handle special folders
+    if (folderId === 'documents') return '/Documents';
+    if (folderId === 'pictures') return '/Pictures';
+    if (folderId === 'downloads') return '/Downloads';
     
     const result = findItem(folderId, fileSystem.root);
     if (!result) return '/Unknown';
@@ -1153,6 +1347,51 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     // If it's an app
     if (icon.type === 'app') {
       openWindow(icon.id);
+      return;
+    }
+    
+    // Handle the special folders (documents, pictures, downloads)
+    if (['documents', 'pictures', 'downloads'].includes(icon.id)) {
+      const folderId = icon.id;
+      
+      // Open folder in file explorer
+      const folderWindow = {
+        id: `folder-view-${folderId}`,
+        title: icon.name,
+        icon: icon.icon || 'folder',
+        content: 'folder',
+        folderId: folderId,
+        size: { width: 800, height: 500 }
+      };
+      
+      // Check if window already exists
+      const existingWindow = windows.find(w => w.id === folderWindow.id);
+      if (existingWindow) {
+        if (existingWindow.minimized) {
+          restoreWindow(folderWindow.id);
+        } else {
+          setActiveWindow(folderWindow.id);
+        }
+        return;
+      }
+      
+      // Position new window with offset
+      const offset = windows.length * 25;
+      folderWindow.position = { 
+        x: Math.max(50, Math.min(window.innerWidth - folderWindow.size.width - 50, 100 + offset)),
+        y: Math.max(50, Math.min(window.innerHeight - folderWindow.size.height - 50, 100 + offset))
+      };
+      
+      // Set zIndex for new window
+      folderWindow.zIndex = windows.length + 10;
+      folderWindow.minimized = false;
+      
+      // Add to windows and set active
+      setWindows([...windows, folderWindow]);
+      setActiveWindow(folderWindow.id);
+      
+      // Initialize file explorer with this folder's ID
+      initializeFileExplorerWindow(folderWindow.id, folderId);
       return;
     }
     
@@ -1229,11 +1468,14 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       folderWindow.minimized = false;
       
       // Add to windows and set active
-      setWindows([...windows, folderWindow]);
+      setWindows(prev => [...prev, folderWindow]);
       setActiveWindow(folderWindow.id);
       
       // Initialize file explorer with this folder's ID
-      initializeFileExplorerWindow(folderWindow.id, icon.id);
+      setTimeout(() => {
+        console.log(`Initializing explorer for new folder window: ${folderWindow.id} with folder ${icon.id}`);
+        initializeFileExplorerWindow(folderWindow.id, icon.id);
+      }, 50);
     }
   };
   
@@ -1279,8 +1521,38 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
   // Update the nested folder navigation handler in file explorer window
   // This function will be called when double-clicking a folder inside a file explorer window
   const navigateToNestedFolder = (windowId, folderId) => {
-    // Navigate to this folder within the current file explorer window
-    navigateToFolder(windowId, folderId);
+    console.log(`Navigating to nested folder: ${folderId} in window ${windowId}`);
+    
+    // Check if the folder exists in the file system
+    const folderResult = findItem(folderId, fileSystem.root);
+    
+    if (folderResult && folderResult.item.type === 'folder') {
+      console.log(`Found folder to navigate to:`, folderResult.item);
+      
+      // Make sure the file history exists for this window
+      if (!fileHistory[windowId]) {
+        // Get parent folder - needed for special directories
+        let initialLocation = 'root';
+        if (folderResult.parent) {
+          initialLocation = folderResult.parent.id;
+        }
+        
+        // Initialize with parent folder first
+        initializeFileExplorerWindow(windowId, initialLocation);
+        
+        // Then navigate to the target folder
+        setTimeout(() => {
+          navigateToFolder(windowId, folderId);
+        }, 0);
+        return;
+      }
+      
+      // Navigate to this folder within the current file explorer window
+      navigateToFolder(windowId, folderId);
+    } else {
+      console.error(`Folder with ID ${folderId} not found`);
+      showNotification('Error: Folder not found', 'error');
+    }
   };
 
   // Format file size in human-readable form
@@ -1388,12 +1660,12 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
   
   // Update proxy URL construction function
   const getProxyUrl = (url) => {
-    return `http://localhost:5000/proxy?url=${encodeURIComponent(url)}`;
+    return `https://berry-3gan.onrender.com/proxy?url=${encodeURIComponent(url)}`;
   };
 
   // Add function to handle direct search queries
   const getSearchUrl = (query) => {
-    return `http://localhost:5000/search?q=${encodeURIComponent(query)}`;
+    return `https://berry-3gan.onrender.com/search?q=${encodeURIComponent(query)}`;
   };
 
   // Update window size based on content type
@@ -1555,7 +1827,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       ...prev,
       isLoading: false,
       error: 'Failed to load the page. This could be due to one of the following reasons:\n\n' +
-             '1. The proxy server is not running. Please start the backend server.\n' +
+             '1. The deployed proxy server might be temporarily unavailable.\n' +
              '2. The website is blocking iframe embedding.\n' +
              '3. The URL might be incorrect.\n\n' +
              'Try enabling proxy mode or opening the page in an external browser.'
@@ -1773,6 +2045,106 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
                     className="file-item"
                     onDoubleClick={() => {
                       if (item.type === 'folder') {
+                        navigateToNestedFolder(window.id, item.id);
+                      } else {
+                        handleIconDoubleClick(item);
+                      }
+                    }}
+                    onContextMenu={(e) => {
+                      e.stopPropagation();
+                      handleContextMenu(e, item.id);
+                    }}
+                  >
+                    <i className={`fas fa-${item.icon || (item.type === 'folder' ? 'folder' : 'file-alt')}`}></i>
+                    
+                    {renamingItem === item.id ? (
+                      <input
+                        ref={renameInputRef}
+                        type="text"
+                        className="rename-input"
+                        defaultValue={item.name}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleRenameSave(item.id, e.target.value);
+                          } else if (e.key === 'Escape') {
+                            handleRenameCancel();
+                          }
+                        }}
+                        onBlur={(e) => handleRenameSave(item.id, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span>{item.name}</span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      } else if (window.content === 'folder') {
+        // Special handling for folder windows
+        // Use the current folder from navigation history instead of the window's initial folder
+        const folderId = getCurrentFolder(window.id) || window.folderId || 'root';
+        const folderContents = getFolderContents(folderId);
+        
+        return (
+          <div className="file-explorer">
+            <div className="file-explorer-toolbar">
+              <div className="file-explorer-nav">
+                <button 
+                  onClick={() => navigateBack(window.id)} 
+                  disabled={!fileHistory[window.id] || fileHistory[window.id].currentIndex === 0}
+                >
+                  <i className="fas fa-arrow-left"></i>
+                </button>
+                <button 
+                  onClick={() => navigateForward(window.id)} 
+                  disabled={!fileHistory[window.id] || fileHistory[window.id].currentIndex === fileHistory[window.id].history.length - 1}
+                >
+                  <i className="fas fa-arrow-right"></i>
+                </button>
+                <button onClick={() => navigateUp(window.id)}>
+                  <i className="fas fa-arrow-up"></i>
+                </button>
+              </div>
+              
+              <div className="file-explorer-path">
+                {getPathName(folderId)}
+              </div>
+              
+              <div className="file-explorer-actions">
+                <button onClick={() => createNewFile()}>
+                  <i className="fas fa-file-alt"></i> New File
+                </button>
+                <button onClick={() => createNewFolder()}>
+                  <i className="fas fa-folder-plus"></i> New Folder
+                </button>
+              </div>
+            </div>
+            
+            <div 
+              className="file-explorer-contents"
+              onContextMenu={(e) => handleFolderContextMenu(e, folderId)}
+            >
+              {folderContents.length === 0 ? (
+                <div className="empty-folder">
+                  <i className="fas fa-folder-open"></i>
+                  <p>This folder is empty</p>
+                </div>
+              ) : (
+                folderContents.map(item => (
+                  <div 
+                    key={`folder-view-${window.id}-item-${item.id}-${item.type}`}
+                    className="file-item"
+                    onDoubleClick={() => {
+                      console.log(`Double-clicked on item:`, item);
+                      if (item.type === 'folder') {
+                        console.log(`Attempting to navigate to subfolder ${item.id} from parent ${folderId}`);
+                        // Force initialize if not yet initialized
+                        if (!fileHistory[window.id]) {
+                          initializeFileExplorerWindow(window.id, folderId);
+                        }
                         navigateToNestedFolder(window.id, item.id);
                       } else {
                         handleIconDoubleClick(item);
@@ -2294,9 +2666,9 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       {/* Windows */}
       {windows.map((window) => (
         <div
-          key={window.id}
+          key={`window-${window.id}${window.renderKey ? `-${window.renderKey}` : ''}`}
           data-id={window.id}
-          className={`window ${activeWindow === window.id ? 'active' : ''} ${window.minimized ? 'minimized' : ''} ${fullscreenWindow === window.id ? 'fullscreen' : ''}`}
+          className={`window ${activeWindow === window.id ? 'active' : ''} ${window.minimized ? 'minimized' : ''} ${fullscreenWindow === window.id ? 'fullscreen' : ''} ${window.isRestoring ? 'restoring' : ''}`}
           style={{
             left: window.position.x,
             top: window.position.y,
@@ -2327,7 +2699,14 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
             </div>
           </div>
           <div className="window-content">
-            {renderWindow(window)}
+            {window.isRestoring ? (
+              <div className="window-loading">
+                <div className="loading-spinner"></div>
+                <div>Loading window content...</div>
+              </div>
+            ) : (
+              renderWindow(window)
+            )}
           </div>
         </div>
       ))}
@@ -2391,10 +2770,6 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
             <i className="fas fa-lock"></i>
             <span>Lock Screen</span>
             <span className="shortcut">Ctrl+L</span>
-          </div>
-          <div className="power-menu-item" onClick={onLogout}>
-            <i className="fas fa-sign-out-alt"></i>
-            <span>Log Out</span>
           </div>
         </div>
       )}

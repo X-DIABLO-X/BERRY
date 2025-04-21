@@ -63,18 +63,15 @@ const Calendar = ({ currentDate }) => {
   };
 
   // Navigate to previous month
-  const prevMonth = () => {
+  const prevMonth = (e) => {
+    e.stopPropagation(); // Prevent event from bubbling up and closing the calendar
     setDisplayDate(new Date(displayDate.getFullYear(), displayDate.getMonth() - 1, 1));
   };
 
   // Navigate to next month
-  const nextMonth = () => {
+  const nextMonth = (e) => {
+    e.stopPropagation(); // Prevent event from bubbling up and closing the calendar
     setDisplayDate(new Date(displayDate.getFullYear(), displayDate.getMonth() + 1, 1));
-  };
-
-  // Go to current month
-  const goToToday = () => {
-    setDisplayDate(new Date());
   };
 
   // Format month and year for display
@@ -83,7 +80,7 @@ const Calendar = ({ currentDate }) => {
   };
 
   return (
-    <div className="calendar">
+    <div className="calendar" onClick={(e) => e.stopPropagation()}>
       <div className="calendar-header">
         <button className="calendar-nav" onClick={prevMonth} title="Previous month">
           <i className="fas fa-chevron-left"></i>
@@ -109,12 +106,6 @@ const Calendar = ({ currentDate }) => {
             {dayObj.day}
           </div>
         ))}
-      </div>
-      
-      <div className="calendar-footer">
-        <button className="today-button" onClick={goToToday}>
-          Today
-        </button>
       </div>
     </div>
   );

@@ -1,13 +1,12 @@
 .datetime {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  cursor: pointer;
+  align-items: center;
+  justify-content: center;
   padding: 0 10px;
   height: 100%;
-  justify-content: center;
-  transition: background-color 0.2s;
-  user-select: none;
+  color: white;
+  cursor: pointer;
   position: relative;
 }
 
@@ -15,16 +14,32 @@
   background-color: rgba(255, 255, 255, 0.1);
 }
 
+.time-date-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
 .time {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
-  color: #fff;
 }
 
 .date {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.8);
-  margin-top: 2px;
+  opacity: 0.8;
+}
+
+.calendar-container {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  animation: calendarFadeIn 0.2s ease-out;
+  z-index: 1000;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
 }
 
 @keyframes calendarFadeIn {

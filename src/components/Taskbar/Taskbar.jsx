@@ -26,8 +26,14 @@ const Taskbar = ({
   };
   
   // Handle app button click
-  const handleAppClick = (windowId) => {
-    onWindowClick(windowId);
+  const handleAppClick = (id) => {
+    onWindowClick(id);
+  };
+
+  // Get all non-default windows that should be shown in taskbar
+  const getActiveWindows = () => {
+    // Filter out windows that aren't part of the default app buttons
+    return openWindows.filter(win => !appButtons.some(app => app.id === win.id));
   };
 
   return (
@@ -37,6 +43,7 @@ const Taskbar = ({
           <i className="fas fa-berry"></i>
         </button>
         
+        {/* Default app buttons */}
         {appButtons.map(app => (
           <button 
             key={app.id}
@@ -48,16 +55,22 @@ const Taskbar = ({
             <span>{app.label}</span>
           </button>
         ))}
+        
+        {/* Custom window buttons */}
+        {getActiveWindows().map(win => (
+          <button 
+            key={win.id}
+            className={`taskbar-button ${!win.minimized ? 'active' : 'minimized-window'} ${activeWindow === win.id ? 'current' : ''}`}
+            onClick={() => handleAppClick(win.id)}
+            title={win.title}
+          >
+            <i className={`fas fa-${win.icon}`}></i>
+            <span>{win.title}</span>
+          </button>
+        ))}
       </div>
       <div className="taskbar-right">
         <DateTime />
-        <button 
-          className="taskbar-button lock-button"
-          onClick={onLock}
-          title="Lock screen"
-        >
-          <i className="fas fa-lock"></i>
-        </button>
         <button 
           className="taskbar-button user-button"
           onClick={onTogglePowerMenu}

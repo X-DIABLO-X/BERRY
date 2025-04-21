@@ -11,7 +11,7 @@ import "./Login.css";
  * @param {Function} props.onLogin - Function to call when login is successful
  */
 const Login = () => {
-  const { login, register, isRegistered } = useContext(AuthContext);
+  const { login, register, isRegistered, user } = useContext(AuthContext);
   const navigate = useNavigate();
   
   // Form state
@@ -114,6 +114,14 @@ const Login = () => {
             <h1 className="login-title">
               {isRegistered ? "Welcome Back" : "Create Account"}
             </h1>
+            
+            {isRegistered && user?.username && (
+              <div className="login-username">
+                <FaUser className="username-icon" />
+                <span>{user.username}</span>
+              </div>
+            )}
+            
             <p className="login-subtitle">
               {isRegistered 
                 ? "Enter your password to unlock BerryOS" 

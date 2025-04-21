@@ -229,6 +229,29 @@
   color: var(--text);
 }
 
+/* User Profile */
+.login-username {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0.5rem auto 1rem;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50px;
+  width: fit-content;
+  animation: slideUp 0.4s ease-out 0.15s backwards;
+}
+
+.login-username .username-icon {
+  margin-right: 0.5rem;
+  color: var(--primary-light);
+}
+
+.login-username span {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
 /* Button Styling */
 .login-button {
   display: flex;

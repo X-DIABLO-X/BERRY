@@ -44,20 +44,21 @@ const DateTime = () => {
   };
 
   // Toggle calendar visibility
-  const toggleCalendar = () => {
+  const toggleCalendar = (e) => {
     setShowCalendar(!showCalendar);
   };
 
   return (
-    <div className="datetime" ref={dateTimeRef} onClick={toggleCalendar}>
-      <div className="time">{formatTime()}</div>
-      <div className="date">{formatDate()}</div>
-      <div style={{ 
-        position: 'relative', 
-        animation: showCalendar ? 'calendarFadeIn 0.2s ease forwards' : 'none'
-      }}>
-        {showCalendar && <Calendar currentDate={currentTime} />}
+    <div className="datetime" ref={dateTimeRef}>
+      <div className="time-date-display" onClick={toggleCalendar}>
+        <div className="time">{formatTime()}</div>
+        <div className="date">{formatDate()}</div>
       </div>
+      {showCalendar && (
+        <div className="calendar-container">
+          <Calendar currentDate={currentTime} />
+        </div>
+      )}
     </div>
   );
 };
