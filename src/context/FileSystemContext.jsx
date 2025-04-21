@@ -1,8 +1,11 @@
-import { createContext, useState, useContext } from 'react';
+import { createContext, useState, useContext, useEffect } from 'react';
 import { useAlert } from './AlertContext';
 
 // Create context
 const FileSystemContext = createContext();
+
+// Storage keys
+const STORAGE_KEY = 'berryos_filesystem';
 
 // Initial file system structure
 const initialFileSystem = {
@@ -46,6 +49,24 @@ export function FileSystemProvider({ children }) {
   const [clipboardItem, setClipboardItem] = useState(null);
   
   const { showAlert } = useAlert();
+
+  // Load file system from localStorage on mount
+  useEffect(() => {
+    const storedFileSystem = localStorage.getItem(STORAGE_KEY);
+    if (storedFileSystem) {
+      try {
+        const parsedFileSystem = JSON.parse(storedFileSystem);
+        setFileSystem(parsedFileSystem);
+      } catch (error) {
+        console.error('Error loading file system from localStorage:', error);
+      }
+    }
+  }, []);
+
+  // Save file system to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(fileSystem));
+  }, [fileSystem]);
 
   // Navigate to a specific path
   const navigateTo = (path) => {

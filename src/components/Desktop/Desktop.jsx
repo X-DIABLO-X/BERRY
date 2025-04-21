@@ -51,6 +51,263 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     }
   });
 
+  // Function to convert the file system to the user-requested format for storage
+  const convertToStorageFormat = (fileSystem) => {
+    // Create a function to recursively convert items
+    const convertItem = (item) => {
+      // Fix any missing or non-string IDs
+      const id = item.id || `${item.type}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+      
+      if (item.type === 'folder') {
+        // For folders, create an array of child items
+        const children = Array.isArray(item.children) ? item.children.map(convertItem) : [];
+        return {
+          type: 'folder',
+          name: item.name,
+          id: id,
+          data: children,
+          createdAt: item.createdAt || new Date().toISOString(),
+          modifiedAt: item.modifiedAt || new Date().toISOString()
+        };
+      } else {
+        // For files, store the content directly
+        return {
+          type: 'file',
+          name: item.name,
+          id: id,
+          data: item.content || '',
+          createdAt: item.createdAt || new Date().toISOString(),
+          modifiedAt: item.modifiedAt || new Date().toISOString()
+        };
+      }
+    };
+    
+    // Start with the root folder
+    return {
+      root: {
+        type: 'folder',
+        name: 'Root',
+        id: 'root',
+        data: Array.isArray(fileSystem.root.children) ? fileSystem.root.children.map(convertItem) : []
+      }
+    };
+  };
+  
+  // Function to convert from storage format back to the application format
+  const convertFromStorageFormat = (storageFormat) => {
+    // Set to track used IDs to ensure uniqueness
+    const usedIds = new Set();
+    
+    // Create a function to recursively convert items
+    const convertItem = (item, parentId) => {
+      // Ensure ID is unique by adding a random suffix if needed
+      let id = String(item.id || '');
+      if (!id || usedIds.has(id)) {
+        id = `${item.type}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+      }
+      usedIds.add(id);
+      
+      if (item.type === 'folder') {
+        // For folders, recursively convert children
+        const children = Array.isArray(item.data) 
+          ? item.data.map(child => convertItem(child, id)) 
+          : [];
+        
+        return {
+          id: id,
+          name: item.name,
+          type: 'folder',
+          icon: 'folder',
+          parent: parentId,
+          children: children,
+          createdAt: item.createdAt || new Date().toISOString(),
+          modifiedAt: item.modifiedAt || new Date().toISOString()
+        };
+      } else {
+        // For files, extract content
+        return {
+          id: id,
+          name: item.name,
+          type: 'file',
+          icon: 'file-alt',
+          parent: parentId,
+          content: item.data || '',
+          createdAt: item.createdAt || new Date().toISOString(),
+          modifiedAt: item.modifiedAt || new Date().toISOString()
+        };
+      }
+    };
+    
+    // Handle root separately
+    const root = storageFormat.root;
+    return {
+      root: {
+        id: 'root',
+        name: 'Root',
+        type: 'folder',
+        children: Array.isArray(root.data) 
+          ? root.data.map(item => convertItem(item, 'root')) 
+          : []
+      }
+    };
+  };
+
+  // Improved function to forcefully save file system to localStorage
+  const forceSaveFileSystem = () => {
+    if (!fileSystem || !fileSystem.root) {
+      console.error('Cannot save file system: invalid file system object');
+      return false;
+    }
+    
+    try {
+      // Convert to storage format
+      const storageFormat = convertToStorageFormat(fileSystem);
+      
+      // Double check that the data we're about to save is valid
+      if (!storageFormat || !storageFormat.root || !storageFormat.root.data) {
+        console.error('Invalid storage format generated');
+        return false;
+      }
+      
+      // Save to localStorage with a clearly defined key
+      const storageKey = `berry-file-system-${username}`;
+      const dataToSave = JSON.stringify(storageFormat);
+      localStorage.setItem(storageKey, dataToSave);
+      
+      // Log the size of the data for debugging
+      console.log(`File system saved (${Math.round(dataToSave.length / 1024)} KB)`);
+      
+      // Verify the save was successful by reading it back
+      const savedData = localStorage.getItem(storageKey);
+      if (!savedData) {
+        console.error('Verification failed: could not read back saved data');
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error forcefully saving file system:', error);
+      return false;
+    }
+  };
+
+  // Save file system to localStorage with the new format
+  const saveFileSystemToStorage = () => {
+    return forceSaveFileSystem();
+  };
+
+  // Enhanced function to load file system from localStorage
+  const loadFileSystemFromStorage = () => {
+    try {
+      const storageKey = `berry-file-system-${username}`;
+      const savedData = localStorage.getItem(storageKey);
+      
+      if (!savedData) {
+        console.log('No saved file system found');
+        return null;
+      }
+      
+      console.log(`Loading saved file system (${Math.round(savedData.length / 1024)} KB)`);
+      
+      const storageFormat = JSON.parse(savedData);
+      
+      // Validate the data before converting
+      if (!storageFormat || !storageFormat.root) {
+        console.error('Invalid file system data in localStorage');
+        return null;
+      }
+      
+      // Check if this is the new format
+      if (typeof storageFormat.root.data !== 'undefined') {
+        // This is the new format
+        const appFormat = convertFromStorageFormat(storageFormat);
+        return appFormat;
+      } else {
+        // This is the old format, convert it
+        console.log('Converting legacy format to new format');
+        const convertedFormat = convertToStorageFormat(storageFormat);
+        const appFormat = convertFromStorageFormat(convertedFormat);
+        
+        // Save back in the new format
+        localStorage.setItem(storageKey, JSON.stringify(convertedFormat));
+        
+        return appFormat;
+      }
+    } catch (error) {
+      console.error('Error loading file system from localStorage:', error);
+      // Create a backup of corrupt data for debugging
+      const savedData = localStorage.getItem(`berry-file-system-${username}`);
+      if (savedData) {
+        localStorage.setItem(`berry-file-system-backup-${Date.now()}`, savedData);
+      }
+      return null;
+    }
+  };
+
+  // Update effect to more reliably load file system on mount
+  useEffect(() => {
+    const loadedFileSystem = loadFileSystemFromStorage();
+    if (loadedFileSystem) {
+      console.log('Successfully loaded file system from localStorage');
+      setFileSystem(loadedFileSystem);
+    } else {
+      console.log('Using default file system');
+    }
+  }, [username]);
+
+  // Strengthen the save mechanism by saving more frequently
+  useEffect(() => {
+    if (fileSystem && fileSystem.root) {
+      // Debounce the save to avoid excessive writes
+      const timeoutId = setTimeout(() => {
+        saveFileSystemToStorage();
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [fileSystem, username]);
+
+  // Enhanced window events to ensure data is saved
+  useEffect(() => {
+    // Force save on page unload/refresh
+    const handleBeforeUnload = (e) => {
+      console.log('Page unloading - saving file system data');
+      forceSaveFileSystem();
+    };
+
+    // Handle visibility change (user switching tabs/minimizing)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        console.log('Page hidden - saving file system data');
+        forceSaveFileSystem();
+      }
+    };
+    
+    // Handle lock or logout events
+    const handleLockOrLogout = () => {
+      console.log('Lock/logout event - saving file system data');
+      forceSaveFileSystem();
+    };
+    
+    // Register all the event listeners
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('berryos-lock', handleLockOrLogout);
+    window.addEventListener('berryos-logout', handleLockOrLogout);
+    
+    // Also save immediately when this effect runs
+    setTimeout(() => {
+      forceSaveFileSystem();
+    }, 1000);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('berryos-lock', handleLockOrLogout);
+      window.removeEventListener('berryos-logout', handleLockOrLogout);
+    };
+  }, [fileSystem, username]);
+
   // Flatten file system for desktop icons display
   const [icons, setIcons] = useState([]);
   
@@ -82,7 +339,8 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     y: 0,
     targetId: 'root', // Default to root (desktop) when right-clicking empty space
     targetItem: null, // Store the actual item for additional context
-    isInFolderView: false
+    isInFolderView: false,
+    isProcessing: false // Flag to track if we're processing a context menu event
   });
   
   // Refs for drag functionality
@@ -237,7 +495,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     // Prevent dragging in fullscreen mode
     if (fullscreenWindow === id) return;
     
-    const windowEl = document.getElementById(`window-${id}`);
+    const windowEl = e.currentTarget.closest('.window');
     if (!windowEl) return;
     
     // Set active window
@@ -261,19 +519,17 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
   const handleWindowDrag = (e) => {
     if (!draggedWindow.current) return;
     
+    // Find the window being dragged
+    const windowEl = document.querySelector(`.window[data-id="${draggedWindow.current}"]`);
+    if (!windowEl) return;
+    
     // Calculate new position directly from mouse position
     const newX = Math.max(0, e.clientX - dragStartPos.current.x);
     const newY = Math.max(0, e.clientY - dragStartPos.current.y);
     
     // Update window position immediately in the DOM for smoother dragging
-    const windowEl = document.getElementById(`window-${draggedWindow.current}`);
-    if (windowEl) {
-      windowEl.style.left = `${newX}px`;
-      windowEl.style.top = `${newY}px`;
-    }
-    
-    // Rate limit state updates to avoid too many re-renders
-    // We'll update React state on drag end
+    windowEl.style.left = `${newX}px`;
+    windowEl.style.top = `${newY}px`;
   };
   
   // Update state when drag ends
@@ -281,7 +537,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     if (!draggedWindow.current) return;
     
     // Get current position from DOM and update state
-    const windowEl = document.getElementById(`window-${draggedWindow.current}`);
+    const windowEl = document.querySelector(`.window[data-id="${draggedWindow.current}"]`);
     if (windowEl) {
       const newX = parseInt(windowEl.style.left, 10) || 0;
       const newY = parseInt(windowEl.style.top, 10) || 0;
@@ -314,24 +570,52 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       return null;
     }
     
-    // Normalize ID to string
+    // Normalize ID to string for reliable comparison
     const itemId = String(id);
     
-    // Check direct children first
+    // Add logging to debug item finding
+    console.log(`Looking for item with ID: ${itemId}`);
+    
+    // Check if this item is a folder-view or file-view ID
+    let actualId = itemId;
+    if (itemId.startsWith('file-view-')) {
+      actualId = itemId.replace('file-view-', '');
+    } else if (itemId.startsWith('folder-view-')) {
+      actualId = itemId.replace('folder-view-', '');
+    }
+    
+    // Check direct children first - more efficient
     for (const child of folder.children || []) {
-      if (String(child.id) === itemId) {
+      if (String(child.id) === actualId) {
+        console.log(`Found item directly: ${child.name}`);
         return { item: child, parent: folder };
       }
     }
     
-    // Recursively search in subfolder children
-    for (const child of folder.children || []) {
-      if (child.type === 'folder' && Array.isArray(child.children)) {
-        const result = findItem(itemId, child);
-        if (result) return result;
+    // Use a breadth-first search approach for better performance
+    const queue = [...(folder.children || [])];
+    
+    while (queue.length > 0) {
+      const current = queue.shift();
+      
+      // If this is a folder, add its children to the queue
+      if (current.type === 'folder' && Array.isArray(current.children)) {
+        // Check this folder's direct children first
+        for (const child of current.children) {
+          if (String(child.id) === actualId) {
+            console.log(`Found item in folder ${current.name}: ${child.name}`);
+            return { item: child, parent: current };
+          }
+          
+          // Add folder children to the queue for next iteration
+          if (child.type === 'folder') {
+            queue.push(child);
+          }
+        }
       }
     }
     
+    console.log(`Item with ID ${actualId} not found`);
     return null;
   };
   
@@ -340,7 +624,13 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     e.preventDefault();
     e.stopPropagation(); // Prevent event bubbling
     
+    // Check if we're already processing a context menu event
+    if (contextMenu.isProcessing) return;
+    
     console.log("Right click on:", targetId); // Debug
+    
+    // Set a processing flag to prevent duplicate events
+    setContextMenu(prev => ({...prev, visible: false, isProcessing: true}));
     
     // Get the item that was right-clicked
     const result = findItem(targetId, fileSystem.root);
@@ -352,7 +642,8 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       y: e.clientY,
       targetId,
       targetItem: result?.item,
-      isInFolderView: false
+      isInFolderView: false,
+      isProcessing: false
     });
   };
   
@@ -361,17 +652,28 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     e.preventDefault();
     e.stopPropagation(); // Prevent bubbling to desktop
     
-    console.log("Right click in folder:", folderId); // Debug
-    const result = findItem(folderId, fileSystem.root);
+    // Check if we're already processing a context menu event
+    if (contextMenu.isProcessing) return;
     
-    setContextMenu({
-      visible: true,
-      x: e.clientX,
-      y: e.clientY,
-      targetId: folderId,
-      targetItem: result?.item,
-      isInFolderView: true
-    });
+    console.log("Right click in folder:", folderId); // Debug
+    
+    // Set a processing flag to prevent duplicate events
+    setContextMenu(prev => ({...prev, visible: false, isProcessing: true}));
+    
+    // Short delay to prevent multiple context menus
+    setTimeout(() => {
+      const result = findItem(folderId, fileSystem.root);
+      
+      setContextMenu({
+        visible: true,
+        x: e.clientX,
+        y: e.clientY,
+        targetId: folderId,
+        targetItem: result?.item,
+        isInFolderView: true,
+        isProcessing: false
+      });
+    }, 50);
   };
   
   // Function to close context menu when clicking elsewhere
@@ -383,8 +685,13 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
   
   // Function to create a new folder in the current context
   const createNewFolder = () => {
+    // Prevent multiple calls in rapid succession
+    if (renamingItem) return;
+    
+    // Create a truly unique ID with both timestamp and random string
     const timestamp = Date.now();
-    const newFolderId = `folder-${timestamp}`;
+    const randomStr = Math.random().toString(36).substring(2, 8);
+    const newFolderId = `folder-${timestamp}-${randomStr}`;
     let parentId = contextMenu.targetId;
     
     // If we're in a folder view and right-clicked in empty space, use the folder's ID
@@ -392,18 +699,28 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       parentId = contextMenu.targetId;
     }
     
+    // Check if we're trying to create on desktop vs in a folder
+    const isDesktop = parentId === 'root';
+    const targetLocation = isDesktop ? 'desktop' : 'file manager';
+    
+    // Create the new folder object
     const newFolder = {
       id: newFolderId,
       name: `New Folder`,
       icon: 'folder',
       type: 'folder',
       parent: parentId,
-      children: []
+      children: [],
+      createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString()
     };
+    
+    // Close context menu immediately to prevent double-clicks
+    setContextMenu(prev => ({ ...prev, visible: false }));
     
     // Update fileSystem by adding new folder to target parent
     setFileSystem(prev => {
-      const updatedSystem = { ...prev };
+      const updatedSystem = JSON.parse(JSON.stringify(prev));
       
       // If target is root, add to root children
       if (parentId === 'root') {
@@ -419,16 +736,27 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       return updatedSystem;
     });
     
+    // Force save the changes
+    setTimeout(() => {
+      forceSaveFileSystem();
+    }, 0);
+    
     // Set the new folder to be renamed immediately
     setRenamingItem(newFolderId);
     
-    setContextMenu({ ...contextMenu, visible: false });
+    // Show notification about where the folder was created
+    showNotification(`Folder created on ${targetLocation}`, 'success');
   };
   
   // Function to create a new file in the current context
   const createNewFile = () => {
+    // Prevent multiple calls in rapid succession
+    if (renamingItem) return;
+    
+    // Create a truly unique ID with both timestamp and random string
     const timestamp = Date.now();
-    const newFileId = `file-${timestamp}`;
+    const randomStr = Math.random().toString(36).substring(2, 8);
+    const newFileId = `file-${timestamp}-${randomStr}`;
     let parentId = contextMenu.targetId;
     
     // If we're in a folder view and right-clicked in empty space, use the folder's ID
@@ -436,18 +764,28 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       parentId = contextMenu.targetId;
     }
     
+    // Check if we're trying to create on desktop vs in a folder
+    const isDesktop = parentId === 'root';
+    const targetLocation = isDesktop ? 'desktop' : 'file manager';
+    
+    // Create the new file object
     const newFile = {
       id: newFileId,
       name: `New File.txt`,
       icon: 'file-alt',
       type: 'file',
       parent: parentId,
-      content: ''
+      content: '',
+      createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString()
     };
+    
+    // Close context menu immediately to prevent double-clicks
+    setContextMenu(prev => ({ ...prev, visible: false }));
     
     // Update fileSystem by adding new file to target parent
     setFileSystem(prev => {
-      const updatedSystem = { ...prev };
+      const updatedSystem = JSON.parse(JSON.stringify(prev));
       
       // If target is root, add to root children
       if (parentId === 'root') {
@@ -463,10 +801,16 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       return updatedSystem;
     });
     
+    // Force save the changes
+    setTimeout(() => {
+      forceSaveFileSystem();
+    }, 0);
+    
     // Set the new file to be renamed immediately
     setRenamingItem(newFileId);
     
-    setContextMenu({ ...contextMenu, visible: false });
+    // Show notification about where the file was created
+    showNotification(`File created on ${targetLocation}`, 'success');
   };
 
   // Fix the saveFile function to handle file IDs correctly
@@ -478,15 +822,16 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       newContent = '';
     }
     
+    // Extract the actual file ID from a file-view- format
+    let actualFileId = fileId;
+    if (typeof fileId === 'string' && fileId.startsWith('file-view-')) {
+      actualFileId = fileId.replace('file-view-', '');
+    }
+    
     // Find the file and update its content
     setFileSystem(prev => {
-      const updatedSystem = { ...prev };
-      
-      // Extract the actual file ID from a file-view- format
-      let actualFileId = fileId;
-      if (typeof fileId === 'string' && fileId.startsWith('file-view-')) {
-        actualFileId = fileId.replace('file-view-', '');
-      }
+      // Deep clone to prevent issues with shared references
+      const updatedSystem = JSON.parse(JSON.stringify(prev));
       
       console.log("Looking for file with ID:", actualFileId);
       const result = findItem(actualFileId, updatedSystem.root);
@@ -494,6 +839,19 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       if (result && result.item) {
         console.log("File found, updating content");
         result.item.content = newContent;
+        result.item.modifiedAt = new Date().toISOString(); // Update modified timestamp
+        
+        // Save immediately to localStorage to ensure persistence
+        try {
+          // Use our improved forced save method for better reliability
+          setTimeout(() => {
+            forceSaveFileSystem();
+          }, 0);
+          console.log('Scheduled forceful save after file update');
+        } catch (error) {
+          console.error('Error scheduling file system save:', error);
+        }
+        
         showNotification('File saved successfully!');
       } else {
         console.error("File not found:", actualFileId);
@@ -517,7 +875,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     
     // Update fileSystem by removing the item from its parent's children
     setFileSystem(prev => {
-      const updatedSystem = { ...prev };
+      const updatedSystem = JSON.parse(JSON.stringify(prev));
       
       // If parent is root
       if (result.parent.id === 'root') {
@@ -536,6 +894,11 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       
       return updatedSystem;
     });
+    
+    // Schedule a force save
+    setTimeout(() => {
+      forceSaveFileSystem();
+    }, 0);
     
     // If there's an open window for this item, close it
     const windowId = `file-view-${itemToDelete}`;
@@ -581,7 +944,8 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     
     // Create a new ID for the pasted item
     const timestamp = Date.now();
-    const newId = `${clipboard.item.type}-${timestamp}`;
+    const randomStr = Math.random().toString(36).substring(2, 8);
+    const newId = `${clipboard.item.type}-${timestamp}-${randomStr}`;
     
     // Create a copy of the item
     const newItem = {
@@ -593,7 +957,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     
     // Update file system
     setFileSystem(prev => {
-      const updatedSystem = { ...prev };
+      const updatedSystem = JSON.parse(JSON.stringify(prev));
       
       // Add item to target folder
       if (targetFolderId === 'root') {
@@ -627,6 +991,11 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       
       return updatedSystem;
     });
+    
+    // Schedule a force save
+    setTimeout(() => {
+      forceSaveFileSystem();
+    }, 0);
     
     showNotification(`Pasted: ${newItem.name}`, 'success');
     setContextMenu({ ...contextMenu, visible: false });
@@ -769,91 +1138,102 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     return '/' + result.item.name;
   };
   
-  // Update handle icon double-click
+  // Handle double-clicking on an icon
   const handleIconDoubleClick = (icon) => {
+    if (!icon) return;
+    
+    console.log("Double-clicked on icon:", icon);
+    
+    // Ensure the icon has an id
+    if (!icon.id) {
+      console.error("Icon is missing an ID:", icon);
+      return;
+    }
+    
+    // If it's an app
     if (icon.type === 'app') {
       openWindow(icon.id);
-    } else if (icon.type === 'folder') {
-      // Create a unique window ID for each folder
-      const folderId = `folder-view-${icon.id}`;
-      
-      // Position with offset
-      const offset = windows.length * 25;
-      
-      const folderWindow = {
-        id: folderId,
-        title: icon.name,
-        icon: 'folder',
-        minimized: false,
-        position: { 
-          x: Math.max(50, Math.min(window.innerWidth - 700 - 50, 120 + offset)),
-          y: Math.max(50, Math.min(window.innerHeight - 450 - 50, 120 + offset))
-        },
-        size: { width: 700, height: 450 },
-        content: 'file-explorer',
-        folderId: icon.id,
-        zIndex: windows.length + 10
-      };
-      
-      // Check if window already exists
-      const existingWindow = windows.find(win => win.id === folderId);
-      if (existingWindow) {
-        if (existingWindow.minimized) {
-          restoreWindow(folderId);
-        } else {
-          setActiveWindow(folderId);
-        }
-      } else {
-        // Create a new window for this folder
-        setWindows([...windows, folderWindow]);
-        setActiveWindow(folderId);
-        
-        // Initialize navigation history for this specific folder
-        initializeFileExplorerWindow(folderId, icon.id);
-      }
-    } else if (icon.type === 'file') {
+      return;
+    }
+    
+    // If it's a file or folder
+    if (icon.type === 'file') {
       // Open file in notepad
-      const fileId = `file-view-${icon.id}`;
-      
-      // Check if window already exists
-      const existingWindow = windows.find(win => win.id === fileId);
-      if (existingWindow) {
-        if (existingWindow.minimized) {
-          restoreWindow(fileId);
-        } else {
-          setActiveWindow(fileId);
-        }
-        return;
-      }
-      
-      // Find the file in the file system
-      const fileResult = findItem(icon.id, fileSystem.root);
-      if (!fileResult || !fileResult.item) {
-        showNotification(`Error: File "${icon.name}" not found`, 'error');
-        return;
-      }
-      
-      // Create a window for the file
-      const offset = windows.length * 25;
-      
       const fileWindow = {
-        id: fileId,
-        title: icon.name || 'Untitled',
-        icon: 'edit',
-        minimized: false,
-        position: { 
-          x: Math.max(50, Math.min(window.innerWidth - 600 - 50, 150 + offset)),
-          y: Math.max(50, Math.min(window.innerHeight - 400 - 50, 150 + offset))
-        },
-        size: { width: 600, height: 400 },
+        id: `file-view-${icon.id}`,
+        title: icon.name,
+        icon: icon.icon || 'file-alt',
         content: 'notepad',
         fileId: icon.id,
-        zIndex: windows.length + 10
+        fileContent: icon.content,
+        size: { width: 600, height: 400 }
       };
       
-      // Add the window and make it active
-      setWindows(prev => [...prev, fileWindow]);
-      setActiveWindow(fileId);
+      // Check if window already exists
+      const existingWindow = windows.find(w => w.id === fileWindow.id);
+      if (existingWindow) {
+        if (existingWindow.minimized) {
+          restoreWindow(fileWindow.id);
+        } else {
+          setActiveWindow(fileWindow.id);
+        }
+        return;
+      }
+      
+      // Position new window with offset
+      const offset = windows.length * 25;
+      fileWindow.position = { 
+        x: Math.max(50, Math.min(window.innerWidth - fileWindow.size.width - 50, 100 + offset)),
+        y: Math.max(50, Math.min(window.innerHeight - fileWindow.size.height - 50, 100 + offset))
+      };
+      
+      // Set zIndex for new window
+      fileWindow.zIndex = windows.length + 10;
+      fileWindow.minimized = false;
+      
+      // Add to windows and set active
+      setWindows([...windows, fileWindow]);
+      setActiveWindow(fileWindow.id);
+      
+    } else if (icon.type === 'folder') {
+      // Open folder in file explorer
+      const folderWindow = {
+        id: `folder-view-${icon.id}`,
+        title: icon.name,
+        icon: icon.icon || 'folder',
+        content: 'folder',
+        folderId: icon.id,
+        size: { width: 800, height: 500 }
+      };
+      
+      // Check if window already exists
+      const existingWindow = windows.find(w => w.id === folderWindow.id);
+      if (existingWindow) {
+        if (existingWindow.minimized) {
+          restoreWindow(folderWindow.id);
+        } else {
+          setActiveWindow(folderWindow.id);
+        }
+        return;
+      }
+      
+      // Position new window with offset
+      const offset = windows.length * 25;
+      folderWindow.position = { 
+        x: Math.max(50, Math.min(window.innerWidth - folderWindow.size.width - 50, 100 + offset)),
+        y: Math.max(50, Math.min(window.innerHeight - folderWindow.size.height - 50, 100 + offset))
+      };
+      
+      // Set zIndex for new window
+      folderWindow.zIndex = windows.length + 10;
+      folderWindow.minimized = false;
+      
+      // Add to windows and set active
+      setWindows([...windows, folderWindow]);
+      setActiveWindow(folderWindow.id);
+      
+      // Initialize file explorer with this folder's ID
+      initializeFileExplorerWindow(folderWindow.id, icon.id);
     }
   };
   
@@ -872,15 +1252,21 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     }
     
     setFileSystem(prev => {
-      const updatedSystem = { ...prev };
+      const updatedSystem = JSON.parse(JSON.stringify(prev));
       const result = findItem(itemId, updatedSystem.root);
       
       if (result) {
         result.item.name = newName;
+        result.item.modifiedAt = new Date().toISOString();
       }
       
       return updatedSystem;
     });
+    
+    // Force save the changes
+    setTimeout(() => {
+      forceSaveFileSystem();
+    }, 0);
     
     setRenamingItem(null);
   };
@@ -988,13 +1374,14 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     }
   };
 
-  // Add browserState definition near other state variables
+  // Enhance browser state to track Google searches
   const [browserState, setBrowserState] = useState({
     url: 'https://www.google.com',
     inputUrl: 'https://www.google.com',
     history: ['https://www.google.com'],
     currentIndex: 0,
     isLoading: true,
+    isGoogleSearch: false,
     error: null,
     proxyMode: true  // Enable proxy mode by default
   });
@@ -1082,6 +1469,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
             ...prev,
             inputUrl: iframeUrl,
             isLoading: false,
+            isGoogleSearch: false,
             error: null
           }));
         } else {
@@ -1089,6 +1477,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
           setBrowserState(prev => ({
             ...prev,
             isLoading: false,
+            isGoogleSearch: false,
             error: null
           }));
         }
@@ -1097,6 +1486,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
         setBrowserState(prev => ({
           ...prev,
           isLoading: false,
+          isGoogleSearch: false,
           error: null
         }));
       }
@@ -1106,6 +1496,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       setBrowserState(prev => ({
         ...prev,
         isLoading: false,
+        isGoogleSearch: false,
         error: null
       }));
     }
@@ -1184,6 +1575,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     e.preventDefault();
     
     let url = browserState.inputUrl.trim();
+    let isGoogleSearch = false;
     
     // Check for direct YouTube navigation patterns
     if (url.toLowerCase().startsWith('youtube ') || url.toLowerCase().startsWith('yt ')) {
@@ -1202,12 +1594,14 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       if (url.includes(' ') || !url.includes('.')) {
         // Use direct search endpoint
         const searchUrl = getSearchUrl(url);
+        isGoogleSearch = true;
         
         setBrowserState(prev => ({
           ...prev,
           url: searchUrl, // Use the proxy search URL instead of direct Google URL
           inputUrl: url,
           isLoading: true,
+          isGoogleSearch: true,
           error: null
         }));
         
@@ -1228,6 +1622,11 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       }
     }
     
+    // Check if URL is a Google search
+    if (url.includes('google.com/search') || url.includes('&q=') || url.includes('?q=')) {
+      isGoogleSearch = true;
+    }
+    
     // Check if this is a YouTube URL
     if (isYouTubeUrl(url)) {
       adjustWindowSize('browser', 'youtube');
@@ -1246,6 +1645,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
         history: newHistory,
         currentIndex: newHistory.length - 1,
         isLoading: true,
+        isGoogleSearch: isGoogleSearch,
         error: null
       }));
     }
@@ -1369,7 +1769,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
               ) : (
                 folderContents.map(item => (
                   <div 
-                    key={item.id}
+                    key={`folder-view-${window.id}-item-${item.id}-${item.type}`}
                     className="file-item"
                     onDoubleClick={() => {
                       if (item.type === 'folder') {
@@ -1484,7 +1884,14 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
               {browserState.isLoading && (
                 <div className="browser-loading">
                   <div className="loading-spinner"></div>
-                  <span>Loading...</span>
+                  {browserState.isGoogleSearch ? (
+                    <div className="search-loading-message">
+                      <span className="search-loading-title">Fetching results from Python server</span>
+                      <span className="search-loading-subtitle">This might take a moment...</span>
+                    </div>
+                  ) : (
+                    <span>Loading...</span>
+                  )}
                 </div>
               )}
               
@@ -1600,24 +2007,26 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
           // State for the editor
           const [content, setContent] = useState(initialContent);
           
+          // Update content when file content changes
+          useEffect(() => {
+            if (fileId) {
+              const result = findItem(fileId, fileSystem.root);
+              if (result && result.item) {
+                setContent(String(result.item.content || ''));
+              }
+            } else if (window.fileContent !== undefined) {
+              setContent(String(window.fileContent || ''));
+            }
+          }, [fileId, window.fileContent, fileSystem]);
+          
           // Handle saving the file
           const handleSave = () => {
             try {
               if (fileId) {
-                // Find the file and update its content
-                setFileSystem(prev => {
-                  const updatedSystem = {...prev};
-                  const result = findItem(fileId, updatedSystem.root);
-                  
-                  if (result && result.item) {
-                    result.item.content = content;
-                    showNotification(`Saved ${result.item.name}`, 'success');
-                    return updatedSystem;
-                  } else {
-                    showNotification('Error: File not found', 'error');
-                    return prev;
-                  }
-                });
+                // Save file content using the main saveFile function
+                saveFile(fileId, content);
+                
+                // No need to update local state as it's already in sync
               } else {
                 // Create a new file 
                 const newFileId = `file-${Date.now()}`;
@@ -1629,13 +2038,27 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
                   type: 'file',
                   icon: 'file-alt',
                   content: content,
-                  parent: 'root'
+                  parent: 'root',
+                  createdAt: new Date().toISOString(),
+                  modifiedAt: new Date().toISOString()
                 };
                 
                 // Add the file to the file system
                 setFileSystem(prev => {
-                  const updatedSystem = {...prev};
+                  const updatedSystem = JSON.parse(JSON.stringify(prev));
                   updatedSystem.root.children = [...(updatedSystem.root.children || []), newFile];
+                  
+                  // Save immediately to localStorage to ensure persistence
+                  try {
+                    // Use our improved forced save method for better reliability
+                    setTimeout(() => {
+                      forceSaveFileSystem();
+                    }, 0);
+                    console.log('Scheduled forceful save after file update');
+                  } catch (error) {
+                    console.error('Error scheduling file system save:', error);
+                  }
+                  
                   return updatedSystem;
                 });
                 
@@ -1827,7 +2250,12 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
   return (
     <div 
       className="desktop" 
-      style={{ backgroundImage: `url(${wallpaper})` }}
+      style={{ 
+        backgroundImage: typeof wallpaper === 'string' ? `url(${wallpaper})` : `url(${wallpaper})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
       onContextMenu={(e) => handleContextMenu(e, 'root')}
       onClick={handleClick}
     >
@@ -1835,7 +2263,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       <div className="desktop-icons">
         {icons.map((icon) => (
           <div
-            key={icon.id}
+            key={`desktop-icon-${icon.id}-${icon.type}`}
             className={`desktop-icon ${renamingItem === icon.id ? 'renaming' : ''}`}
             onDoubleClick={() => handleIconDoubleClick(icon)}
             onContextMenu={(e) => handleContextMenu(e, icon.id)}
@@ -1867,6 +2295,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
       {windows.map((window) => (
         <div
           key={window.id}
+          data-id={window.id}
           className={`window ${activeWindow === window.id ? 'active' : ''} ${window.minimized ? 'minimized' : ''} ${fullscreenWindow === window.id ? 'fullscreen' : ''}`}
           style={{
             left: window.position.x,

@@ -3,6 +3,12 @@ import { FaPalette, FaUser, FaBell, FaInfoCircle, FaCheck, FaCamera, FaSave, FaK
 import { useAuth } from '../../context/AuthContext';
 import '../../styles/Settings.css';
 
+// Import wallpaper assets directly
+import Wallpaper1 from '../../assets/wallpapers/wallpaper1.jpg';
+import Wallpaper2 from '../../assets/wallpapers/wallpaper2.jpg';
+import Wallpaper3 from '../../assets/wallpapers/wallpaper3.jpg';
+import Wallpaper4 from '../../assets/wallpapers/wallpaper4.jpg';
+
 const Settings = () => {
   const { 
     user, 
@@ -176,10 +182,34 @@ const Settings = () => {
     { color: '#f1fa8c', name: 'Yellow' }
   ];
 
-  // Available wallpapers
+  // Available wallpapers with imported images
   const wallpapers = [
-    { path: './assets/wallpapers/wallpaper1.jpg', name: 'Mountains' }
+    { path: Wallpaper1, name: 'Mountains' },
+    { path: Wallpaper2, name: 'Neon' },
+    { path: Wallpaper3, name: 'Sunset' },
+    { path: Wallpaper4, name: 'Landscape' },
   ];
+
+  // Helper function to check if wallpaper is active
+  const isWallpaperActive = (wallpaperPath, userWallpaper) => {
+    // Compare the src attribute of the imported images
+    if (typeof wallpaperPath === 'string' && typeof userWallpaper === 'string') {
+      return wallpaperPath === userWallpaper;
+    }
+    
+    // For imported images, compare the last part of the path
+    const getWallpaperName = (path) => {
+      if (typeof path === 'string') {
+        return path.split('/').pop();
+      }
+      return String(path);
+    };
+    
+    const pathName = getWallpaperName(wallpaperPath);
+    const userPathName = getWallpaperName(userWallpaper);
+    
+    return pathName === userPathName;
+  };
 
   const renderAppearanceSettings = () => (
     <>
@@ -193,8 +223,8 @@ const Settings = () => {
         <div className="wallpaper-grid">
           {wallpapers.map(item => (
             <div 
-              key={item.path}
-              className={`wallpaper-card ${user.wallpaper === item.path ? 'active' : ''}`}
+              key={item.name}
+              className={`wallpaper-card ${isWallpaperActive(item.path, user.wallpaper) ? 'active' : ''}`}
               onClick={() => handleWallpaperChange(item.path)}
             >
               <div className="wallpaper-preview">
@@ -202,7 +232,7 @@ const Settings = () => {
               </div>
               <div className="wallpaper-info">
                 <span>{item.name}</span>
-                {user.wallpaper === item.path && <FaCheck />}
+                {isWallpaperActive(item.path, user.wallpaper) && <FaCheck />}
               </div>
             </div>
           ))}

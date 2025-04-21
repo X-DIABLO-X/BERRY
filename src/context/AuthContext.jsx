@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import Wallpaper1 from '../assets/wallpapers/wallpaper1.jpg';
+import Wallpaper3 from '../assets/wallpapers/wallpaper3.jpg';
 
 // Create context
 export const AuthContext = createContext();
@@ -12,7 +14,20 @@ const STORAGE_KEYS = {
   THEME: 'berry_theme',
   ACCENT_COLOR: 'berry_accent_color',
   IS_REGISTERED: 'berry_is_registered',
-  NOTIFICATIONS: 'berry_notifications'
+  NOTIFICATIONS: 'berry_notifications',
+  LOCKED_STATE: 'berry_locked_state'
+};
+
+// Helper function to get wallpaper by name
+const getWallpaperByName = (name) => {
+  switch(name) {
+    case 'mountains':
+      return Wallpaper1;
+    case 'sunset':
+      return Wallpaper3;
+    default:
+      return Wallpaper3;
+  }
 };
 
 export const AuthProvider = ({ children }) => {
@@ -25,7 +40,7 @@ export const AuthProvider = ({ children }) => {
     profilePhoto: null,
     theme: 'dark',
     accentColor: '#bd93f9',
-    wallpaper: './assets/wallpapers/wallpaper1.jpg',
+    wallpaper: Wallpaper3,
     notifications: {
       system: true,
       updates: true,
@@ -46,7 +61,8 @@ export const AuthProvider = ({ children }) => {
         // Load user data
         const username = localStorage.getItem(STORAGE_KEYS.USERNAME) || 'User';
         const profilePhoto = localStorage.getItem(STORAGE_KEYS.PROFILE_PHOTO) || null;
-        const wallpaper = localStorage.getItem(STORAGE_KEYS.WALLPAPER) || './assets/wallpapers/wallpaper1.jpg';
+        const wallpaperName = localStorage.getItem(STORAGE_KEYS.WALLPAPER) || 'sunset';
+        const wallpaper = getWallpaperByName(wallpaperName);
         const theme = localStorage.getItem(STORAGE_KEYS.THEME) || 'dark';
         const accentColor = localStorage.getItem(STORAGE_KEYS.ACCENT_COLOR) || '#bd93f9';
         
@@ -74,6 +90,14 @@ export const AuthProvider = ({ children }) => {
           wallpaper,
           notifications
         });
+
+        // Check if we were previously locked and automatically authenticate
+        const wasLocked = localStorage.getItem(STORAGE_KEYS.LOCKED_STATE) === 'true';
+        if (wasLocked) {
+          setIsAuthenticated(false);
+        } else {
+          setIsAuthenticated(true);
+        }
       }
       
       setIsLoading(false);
@@ -88,6 +112,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem(STORAGE_KEYS.USERNAME, username);
     localStorage.setItem(STORAGE_KEYS.PASSWORD, password); // In a real app, this should be hashed
     localStorage.setItem(STORAGE_KEYS.IS_REGISTERED, 'true');
+    localStorage.setItem(STORAGE_KEYS.LOCKED_STATE, 'false');
+    localStorage.setItem(STORAGE_KEYS.WALLPAPER, 'sunset');
     
     // Update state
     setUser(prev => ({
@@ -104,20 +130,69 @@ export const AuthProvider = ({ children }) => {
     
     if (password === storedPassword) {
       setIsAuthenticated(true);
+      localStorage.setItem(STORAGE_KEYS.LOCKED_STATE, 'false');
+      
+      // Load user data to ensure persistence on unlock
+      const username = localStorage.getItem(STORAGE_KEYS.USERNAME) || 'User';
+      const profilePhoto = localStorage.getItem(STORAGE_KEYS.PROFILE_PHOTO) || null;
+      const wallpaperName = localStorage.getItem(STORAGE_KEYS.WALLPAPER) || 'sunset';
+      const wallpaper = getWallpaperByName(wallpaperName);
+      const theme = localStorage.getItem(STORAGE_KEYS.THEME) || 'dark';
+      const accentColor = localStorage.getItem(STORAGE_KEYS.ACCENT_COLOR) || '#bd93f9';
+      
+      // Parse notifications object
+      let notifications = {
+        system: true,
+        updates: true,
+        security: true
+      };
+      
+      try {
+        const savedNotifications = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+        if (savedNotifications) {
+          notifications = JSON.parse(savedNotifications);
+        }
+      } catch (error) {
+        console.error('Error parsing notifications:', error);
+      }
+      
+      setUser({
+        username,
+        profilePhoto,
+        theme,
+        accentColor,
+        wallpaper,
+        notifications
+      });
+      
       return true;
     } else {
       return false;
     }
   };
 
-  // Logout (now used for locking)
+  // Logout (complete logout)
   const logout = () => {
-    setIsAuthenticated(false);
+    // Dispatch custom event for file system saving
+    window.dispatchEvent(new Event('berryos-logout'));
+    
+    // Wait a moment to ensure file system has time to save
+    setTimeout(() => {
+      setIsAuthenticated(false);
+      localStorage.setItem(STORAGE_KEYS.LOCKED_STATE, 'false');
+    }, 300); // Increased timeout for better reliability
   };
 
   // Lock screen
   const lock = () => {
-    setIsAuthenticated(false);
+    // Dispatch custom event for file system saving
+    window.dispatchEvent(new Event('berryos-lock'));
+    
+    // Wait a moment to ensure file system has time to save
+    setTimeout(() => {
+      setIsAuthenticated(false);
+      localStorage.setItem(STORAGE_KEYS.LOCKED_STATE, 'true');
+    }, 300); // Increased timeout for better reliability
   };
 
   // Update username
@@ -155,7 +230,17 @@ export const AuthProvider = ({ children }) => {
 
   // Update wallpaper
   const updateWallpaper = (wallpaperPath) => {
-    localStorage.setItem(STORAGE_KEYS.WALLPAPER, wallpaperPath);
+    // Store the wallpaper name in localStorage
+    let wallpaperName = 'sunset';
+    
+    if (wallpaperPath === Wallpaper1) {
+      wallpaperName = 'mountains';
+    } else if (wallpaperPath === Wallpaper3) {
+      wallpaperName = 'sunset';
+    }
+    
+    localStorage.setItem(STORAGE_KEYS.WALLPAPER, wallpaperName);
+    
     setUser(prev => ({
       ...prev,
       wallpaper: wallpaperPath

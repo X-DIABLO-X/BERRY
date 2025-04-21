@@ -4,6 +4,7 @@ import Desktop from './components/Desktop/Desktop';
 import Login from './components/Login/Login';
 import Loading from './components/Loading/Loading';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import Wallpaper1 from './assets/wallpapers/wallpaper1.jpg';
 import './App.css';
 
 // Protected route component
@@ -19,7 +20,7 @@ const ProtectedRoute = ({ children }) => {
 // Main App container that manages authentication
 const AppContent = () => {
   const { isAuthenticated, isRegistered, isLoading, user, logout, lock } = useAuth();
-  const [wallpaper, setWallpaper] = useState(user.wallpaper || './assets/wallpapers/wallpaper1.jpg');
+  const [wallpaper, setWallpaper] = useState(user.wallpaper || Wallpaper1);
   const [error, setError] = useState(null);
 
   // Update wallpaper when user settings change

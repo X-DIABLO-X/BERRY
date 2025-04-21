@@ -17,8 +17,7 @@ const Taskbar = ({
     { id: 'file-explorer', icon: 'fa-folder', label: 'Files' },
     { id: 'terminal', icon: 'fa-terminal', label: 'Terminal' },
     { id: 'browser', icon: 'fa-globe', label: 'Browser' },
-    { id: 'settings', icon: 'fa-cog', label: 'Settings' },
-    { id: 'notepad', icon: 'fa-edit', label: 'Notepad' }
+    { id: 'settings', icon: 'fa-cog', label: 'Settings' }
   ];
   
   // Check if window is open and active
