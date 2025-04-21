@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response, stream_with_context, redirect
+from flask import Flask, request, jsonify, Response, stream_with_context, redirect, url_for
 import requests
 from bs4 import BeautifulSoup
 from flask_cors import CORS
@@ -44,6 +44,14 @@ YOUTUBE_DOMAINS = [
     'youtube-nocookie.com',
     'www.youtube-nocookie.com'
 ]
+
+def ensure_https(url):
+    """
+    Ensure a URL uses HTTPS instead of HTTP
+    """
+    if url and url.startswith('http://'):
+        return 'https://' + url[7:]
+    return url
 
 @app.route('/')
 def index():
@@ -98,7 +106,7 @@ def youtube_handler():
         "iv_load_policy=3"  # Hide annotations
     ])
     
-    # Construct the embed URL
+    # Construct the embed URL - ensure HTTPS
     embed_url = f"https://www.youtube.com/embed/{video_id}?{('&').join(embed_params)}"
     logger.info(f"Proxying YouTube video: {video_id} via embed URL: {embed_url}")
     
@@ -194,14 +202,14 @@ def search():
             yt_query = q.lower().replace('youtube ', '', 1).strip()
             logger.info(f"YouTube search detected. Query: '{yt_query}'")
             
-            # Construct YouTube search URL
+            # Construct YouTube search URL - ensure HTTPS
             yt_search_url = f"https://www.youtube.com/results?search_query={quote_plus(yt_query)}"
             logger.info(f"Redirecting to YouTube search: {yt_search_url}")
             
             # Redirect to our proxy with the YouTube search URL
             return redirect(f"/proxy?url={quote_plus(yt_search_url)}")
         
-        # Construct Google search URL with parameters
+        # Construct Google search URL with parameters - ensure HTTPS
         search_params = {
             'q': q,
             'hl': 'en',  # Language
@@ -221,7 +229,7 @@ def search():
                 if key != 'q' and value:
                     search_params[key] = value
         
-        # Construct the final search URL
+        # Construct the final search URL - ensure HTTPS
         search_url = f"https://www.google.com/search?{urlencode(search_params)}"
         logger.info(f"Constructed search URL: {search_url}")
         
@@ -233,7 +241,7 @@ def search():
         traceback_str = traceback.format_exc()
         logger.error(f"Traceback: {traceback_str}")
         
-        # Default to Google homepage on error
+        # Default to Google homepage on error - ensure HTTPS
         return redirect("/proxy?url=https://www.google.com")
 
 @app.route('/proxy', methods=['GET', 'POST'])
@@ -268,11 +276,16 @@ def proxy_website():
                 except Exception as e:
                     logger.error(f"Error decoding URL: {e}")
                 
+                # Ensure HTTPS
+                actual_url = ensure_https(actual_url)
                 logger.info(f"Fixed nested proxy URL. Redirecting to: {actual_url}")
                 return redirect(f"/proxy?url={urllib.parse.quote(actual_url)}")
             else:
                 return jsonify({"error": "Invalid nested proxy URL"}), 400
                 
+        # Ensure HTTPS for all URLs
+        url = ensure_https(url)
+        
         # Check for direct Google search URLs
         if url and 'google.com/search' in url:
             logger.info(f"Detected Google search URL: {url}")
@@ -281,16 +294,20 @@ def proxy_website():
     if request.method == 'POST':
         url = request.form.get('url')
         
+        # Ensure HTTPS
+        if url:
+            url = ensure_https(url)
+        
         # Handle Google search form submission
         if url and ('google.com/search' in url or '/search' in url):
             # Get the search query
             q = request.form.get('q')
             if q:
-                # Construct Google search URL with the query
+                # Construct Google search URL with the query - ensure HTTPS
                 search_url = f"https://www.google.com/search?q={urllib.parse.quote(q)}"
                 for key, value in request.form.items():
                     if key not in ['url', 'q'] and value:
-                        search_url += f"&{urllib.parse.quote(value)}"
+                        search_url += f"&{key}={urllib.parse.quote(value)}"
                 
                 logger.info(f"Redirecting Google search to: {search_url}")
                 return redirect(f"/proxy?url={urllib.parse.quote(search_url)}")
@@ -299,7 +316,7 @@ def proxy_website():
         if url and ('youtube.com/results' in url or '/results' in url):
             search_query = request.form.get('search_query')
             if search_query:
-                # Construct proper YouTube search URL
+                # Construct proper YouTube search URL - ensure HTTPS
                 search_url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(search_query)}"
                 logger.info(f"Redirecting YouTube search to: {search_url}")
                 return redirect(f"/proxy?url={urllib.parse.quote(search_url)}")
@@ -325,6 +342,9 @@ def proxy_website():
     if not url:
         return jsonify({"error": "No URL provided"}), 400
     
+    # Ensure HTTPS
+    url = ensure_https(url)
+    
     # Special handling for YouTube watch URLs
     youtube_video_match = re.match(r'https?://(www\.)?(youtube\.com|youtu\.be)(/watch\?v=|/)([a-zA-Z0-9_-]{11})', url)
     if youtube_video_match:
@@ -339,6 +359,8 @@ def proxy_website_handler(url):
     Focuses on modifying Google search forms to ensure they work properly through the proxy.
     """
     try:
+        # Ensure HTTPS for the URL
+        url = ensure_https(url)
         logger.info(f"Proxying website: {url}")
         
         # Use a session to maintain cookies and common headers
@@ -383,9 +405,17 @@ def proxy_website_handler(url):
         for a_tag in soup.find_all('a', href=True):
             href = a_tag['href']
             if href.startswith('http'):
+                # Ensure HTTPS
+                href = ensure_https(href)
                 a_tag['href'] = f"/proxy?url={quote_plus(href)}"
                 a_tag['target'] = '_self'  # Open in same tab
                 logger.debug(f"Modified link: {href} -> /proxy?url={quote_plus(href)}")
+            elif href.startswith('//'):
+                # Protocol-relative URLs, make them explicit HTTPS
+                href = f"https:{href}"
+                a_tag['href'] = f"/proxy?url={quote_plus(href)}"
+                a_tag['target'] = '_self'
+                logger.debug(f"Modified protocol-relative link: {href}")
         
         # Process forms
         logger.info("Processing forms")
@@ -402,11 +432,18 @@ def proxy_website_handler(url):
             # Convert relative URLs to absolute
             if not action.startswith('http'):
                 if action.startswith('/'):
-                    base_url = '/'.join(url.split('/')[:3])  # http(s)://domain.com
+                    # Ensure we use HTTPS for the base URL
+                    parsed_url = urllib.parse.urlparse(url)
+                    base_url = f"https://{parsed_url.netloc}"  # Force HTTPS
                     action = f"{base_url}{action}"
                 else:
                     action = urljoin(url, action)
                 logger.info(f"Converted relative action to absolute: {action}")
+            else:
+                # Force HTTPS for all absolute URLs
+                if action.startswith('http://'):
+                    action = 'https://' + action[7:]
+                    logger.info(f"Converted HTTP action to HTTPS: {action}")
             
             # Check if it's a Google search form
             is_google_search = False
@@ -419,10 +456,12 @@ def proxy_website_handler(url):
                 form['method'] = 'POST'
                 logger.info("Modified Google form to use our search endpoint")
                 
-                # Add a hidden input for the original URL
+                # Add a hidden input for the original URL (ensure it's HTTPS)
                 url_input = soup.new_tag('input')
                 url_input['type'] = 'hidden'
                 url_input['name'] = 'url'
+                if url.startswith('http://'):
+                    url = 'https://' + url[7:]  # Convert to HTTPS
                 url_input['value'] = url
                 form.append(url_input)
                 logger.info(f"Added hidden input with original URL: {url}")
@@ -459,9 +498,48 @@ def proxy_website_handler(url):
                     }
                 });
                 """
-                soup.head.append(script)
+                if soup.head:
+                    soup.head.append(script)
+                else:
+                    # Create head if it doesn't exist
+                    head = soup.new_tag('head')
+                    head.append(script)
+                    soup.html.insert(0, head)
                 logger.info("Added JavaScript to enhance Google search form")
+        
+        # Process iframes to ensure HTTPS
+        for iframe in soup.find_all('iframe', src=True):
+            src = iframe['src']
+            if src.startswith('http://'):
+                iframe['src'] = 'https://' + src[7:]
+                logger.info(f"Converted iframe src from HTTP to HTTPS: {iframe['src']}")
                 
+        # Fix mixed content in style tags
+        for style in soup.find_all('style'):
+            if style.string:
+                style.string = style.string.replace('http://', 'https://')
+                
+        # Fix inline styles with url() references
+        for tag in soup.find_all(style=True):
+            if 'url(http://' in tag['style']:
+                tag['style'] = tag['style'].replace('url(http://', 'url(https://')
+                
+        # Add a meta tag to enforce HTTPS
+        meta_tag = soup.new_tag('meta')
+        meta_tag['http-equiv'] = 'Content-Security-Policy'
+        meta_tag['content'] = "upgrade-insecure-requests"
+        if soup.head:
+            soup.head.insert(0, meta_tag)
+        else:
+            head = soup.new_tag('head')
+            head.append(meta_tag)
+            if soup.html:
+                soup.html.insert(0, head)
+            else:
+                html = soup.new_tag('html')
+                html.append(head)
+                soup.append(html)
+        
         # Return modified HTML content
         modified_html = str(soup)
         logger.info("Returning modified HTML content")
@@ -478,6 +556,8 @@ def stream_video(url, headers):
     Stream video content from the source URL
     """
     try:
+        # Ensure HTTPS for video URL
+        url = ensure_https(url)
         logger.info(f"Streaming video from: {url}")
         
         # Create custom headers for video
@@ -530,6 +610,8 @@ def proxy_resource():
         return jsonify({"error": "No URL provided"}), 400
     
     try:
+        # Ensure HTTPS
+        url = ensure_https(url)
         logger.info(f"Proxying resource: {url}")
         
         # Check if this is a YouTube resource
