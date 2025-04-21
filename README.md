@@ -1,6 +1,6 @@
 # 🍓 BerryOS – A Web-Based Desktop Operating System
 
-![BerryOS Overview](./images/img1.png)
+![BerryOS Overview](./images/img1-os.png)
 
 **BerryOS** brings the look and feel of a real operating system to the browser! Built with ⚛️ **React** on the frontend and 🐍 **Python** on the backend, it offers a fully immersive desktop experience — now with 🌦️ **Weather Widgets** and 🤖 **AI Assistant** support!
 
