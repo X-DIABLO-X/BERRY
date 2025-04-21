@@ -1,93 +1,103 @@
-# BerryOS - Desktop Operating System Experience
+# 🍓 BerryOS – A Web-Based Desktop Operating System
 
-BerryOS is a web-based desktop operating system UI built with React and enhanced with a Python backend for full browser functionality. It provides a complete desktop experience with applications like file management, terminal, and a web browser.
+![BerryOS Overview](./images/img1.png)
 
-## Features
+**BerryOS** brings the look and feel of a real operating system to the browser! Built with ⚛️ **React** on the frontend and 🐍 **Python** on the backend, it offers a fully immersive desktop experience — now with 🌦️ **Weather Widgets** and 🤖 **AI Assistant** support!
 
-- **Desktop Interface**: Familiar desktop UI with app icons, windows, and taskbar
-- **File Explorer**: Navigate files and folders, create, copy, cut, paste, and delete files
-- **Terminal**: Linux-style terminal with basic commands
-- **Real Web Browser**: Python-backed proxy for browsing any website
-- **Multiple Applications**: Settings, notepad, and other utility apps
-- **Realistic Experience**: Draggable windows, context menus, and more
+---
 
-## Setup Instructions
+## 🚀 Features
 
-### Frontend (React)
+- 🪟 **Desktop Environment** – Drag, resize, minimize, and manage multiple application windows
+- 📁 **File Explorer** – Create, rename, delete, copy, and move files and folders
+- 🧑‍💻 **Linux-style Terminal** – Run basic shell commands like `ls`, `cd`, `echo`, `date`, and `clear`
+- 🌐 **Integrated Browser** – Real web browsing with Python-based proxy, iframe, and screenshot modes
+- 📝 **Notepad App** – A simple writing space for your ideas and notes
+- ⚙️ **Settings** – Customize the desktop environment and app behavior
+- 🌦️ **Weather App** – Get your local weather with real-time data from weather APIs
+- 🤖 **AI Assistant** – Your virtual desktop assistant powered by AI for help, reminders, and quick actions
+- 🖱️ **Context Menus** – Right-click support on desktop and files
+- 🔄 **Multi-window System** – Switch between apps like a real OS
 
-1. Install dependencies:
-   ```
+---
+
+## 📸 Screenshots
+
+### 🌐 Desktop Interface
+![BerryOS Desktop](./images/img2.png)
+
+---
+
+## 🧑‍💻 Getting Started
+
+### 🔹 Frontend (React)
+
+1. 📦 Install dependencies:
+   ```bash
    npm install
    ```
-
-2. Start the development server:
-   ```
+2. 🚀 Start the development server:
+   ```bash
    npm run dev
    ```
-   
-3. Access the application at http://localhost:5173 (or the port shown in your terminal)
+3. 🔗 Open the app in your browser: http://localhost:5173
 
-### Backend (Python Proxy Server)
+### 🔸 Backend (Python Proxy for Browser)
+Used to enable full-featured website browsing via a proxy server.
 
-The browser component uses a Python backend proxy to enable full browsing capabilities.
-
-1. Navigate to the backend directory:
-   ```
+1. 📂 Go to the backend folder:
+   ```bash
    cd backend
    ```
-
-2. Install Python dependencies:
-   ```
+2. 📥 Install Python dependencies:
+   ```bash
    pip install -r requirements.txt
    ```
-
-3. Start the Python server:
-   ```
+3. ▶️ Start the Python server:
+   ```bash
    python app/main.py
    ```
-   
-   For Windows users, you can simply double-click the `start_backend.bat` file in the backend directory.
+   ✅ On Windows, just double-click start_backend.bat to run.
 
-4. The proxy server will start at http://localhost:5000
+4. 🔗 Backend will be running at: http://localhost:5000
 
-⚠️ **IMPORTANT**: The browser component requires the proxy server to be running for most functionality, including Google searches and website browsing. If the proxy server is not running, you will see errors when trying to use the browser.
+## 🌍 Browser Modes
 
-## Browser Modes
+- 🌀 **Proxy Mode** – Enables full website browsing using the Python proxy
+- 🧊 **Iframe Mode** – Directly embed websites (subject to CORS policies)
+- 📷 **Preview Mode** – Displays screenshot thumbnails of websites
 
-The web browser supports three viewing modes:
+Switch between modes using toggle buttons in the browser.
 
-1. **Proxy Mode**: Uses the Python backend to proxy websites, enabling you to view almost any website
-2. **Iframe Mode**: Direct iframe embedding (limited by website security policies)
-3. **Preview Mode**: Shows website screenshots for quick previews
+## 🧭 Usage
 
-To use the full browser capabilities, ensure the Python backend is running.
+- 🖱️ Double-click icons to open apps
+- ➕ Open multiple apps and drag windows around
+- 📁 Use File Explorer to manage files with right-click options
+- ⬛ Terminal Commands: ls, cd, help, echo, date, clear
+- 🤖 AI Assistant: Ask questions, set reminders, and get help on the OS!
+- 🌦️ Weather App: Auto-detects location and shows current conditions
 
-## Usage
+## 🧩 Architecture
 
-- **Desktop**: Double-click icons to open applications
-- **Windows**: Drag windows by their title bars, resize, minimize, or close them
-- **File System**: Navigate files/folders, right-click for context menu options
-- **Browser**: Enter URLs or search terms in the address bar, use the mode toggle buttons for different viewing options
-- **Terminal**: Type commands like `help`, `ls`, `cd`, `echo`, `date`, or `clear`
+| Component | Stack |
+|-----------|-------|
+| 💻 Frontend | React + Vite + Hooks |
+| 🐍 Backend | Python (Flask Proxy Server) |
+| 🎨 UI Styling | CSS + Inline Styles |
+| 🧠 AI Support | OpenAI / LLM (Configurable) |
+| 🌦️ Weather | Weather API (OpenWeatherMap) |
 
-## Architecture
+## 🔐 Security Notice
 
-- **Frontend**: React application with component-based architecture
-- **Backend**: Flask-based Python proxy server for web browsing
-- **Styling**: CSS with inline styles for responsive layout
-- **State Management**: React's useState and useEffect hooks
+The Python backend proxy is for development and educational use only. It bypasses standard web security mechanisms (CORS, cookies, sessions) and should not be used for secure or sensitive browsing.
 
-## Security Considerations
+## 🤝 Contributing
 
-The Python proxy backend is for development and educational purposes only. It has limitations:
-- It bypasses website security restrictions
-- It doesn't handle cookies and sessions properly
-- It shouldn't be used for sensitive browsing
+We welcome all contributions! 🧑‍💻 Whether it's a new app, feature, or bug fix—submit a pull request and join the BerryOS builders.
 
-## Contributing
+## 📄 License
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+MIT License © 2025
 
-## License
-
-This project is open source and available under the MIT License.
+Feel free to fork, modify, and build your own web OS!
