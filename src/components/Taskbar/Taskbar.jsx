@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import DateTime from './DateTime';
+import Weather from '../Weather/Weather';
 import './Taskbar.css';
 
 const Taskbar = ({ 
@@ -10,8 +11,12 @@ const Taskbar = ({
   onLock,
   username,
   onTogglePowerMenu,
-  powerMenuVisible
+  powerMenuVisible,
+  onToggleChatbot
 }) => {
+  // State for weather component
+  const [isWeatherOpen, setIsWeatherOpen] = useState(false);
+  
   // App buttons config
   const appButtons = [
     { id: 'file-explorer', icon: 'fa-folder', label: 'Files' },
@@ -30,6 +35,11 @@ const Taskbar = ({
     onWindowClick(id);
   };
 
+  // Toggle weather display
+  const toggleWeather = () => {
+    setIsWeatherOpen(!isWeatherOpen);
+  };
+
   // Get all non-default windows that should be shown in taskbar
   const getActiveWindows = () => {
     // Filter out windows that aren't part of the default app buttons
@@ -39,8 +49,8 @@ const Taskbar = ({
   return (
     <div className="taskbar">
       <div className="taskbar-left">
-        <button className="app-menu-button">
-          <i className="fas fa-berry"></i>
+        <button className="app-menu-button" onClick={onToggleChatbot}>
+          <i className="fas fa-robot"></i>
         </button>
         
         {/* Default app buttons */}
@@ -70,7 +80,16 @@ const Taskbar = ({
         ))}
       </div>
       <div className="taskbar-right">
+        <button 
+          className="taskbar-button weather-button" 
+          onClick={toggleWeather}
+          title="Weather"
+        >
+          <i className="fas fa-cloud-sun"></i>
+        </button>
+        
         <DateTime />
+        
         <button 
           className="taskbar-button user-button"
           onClick={onTogglePowerMenu}
@@ -81,6 +100,9 @@ const Taskbar = ({
           <i className={`fas fa-chevron-${powerMenuVisible ? 'up' : 'down'} dropdown-icon`}></i>
         </button>
       </div>
+      
+      {/* Weather component */}
+      <Weather isOpen={isWeatherOpen} onClose={toggleWeather} />
     </div>
   );
 };

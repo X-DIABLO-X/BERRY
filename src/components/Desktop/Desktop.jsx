@@ -3,6 +3,7 @@ import Taskbar from '../Taskbar/Taskbar';
 import './Desktop.css';
 import Terminal from '../Terminal/Terminal';
 import Settings from '../Settings/Settings';
+import Chatbot from '../Chatbot/Chatbot';
 
 /**
  * Desktop component that serves as the main UI after login
@@ -20,6 +21,9 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
   
   // Add state for tracking fullscreen windows
   const [fullscreenWindow, setFullscreenWindow] = useState(null);
+  
+  // Add state for chatbot
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   
   // Enhanced file system with parent-child relationships
   const [fileSystem, setFileSystem] = useState({
@@ -2619,6 +2623,11 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
     setPowerMenuVisible(prev => !prev);
   };
 
+  // Toggle chatbot visibility
+  const toggleChatbot = () => {
+    setIsChatbotOpen(!isChatbotOpen);
+  };
+
   return (
     <div 
       className="desktop" 
@@ -2774,6 +2783,9 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
         </div>
       )}
       
+      {/* Chatbot */}
+      <Chatbot isOpen={isChatbotOpen} onClose={toggleChatbot} />
+      
       {/* Taskbar */}
       <Taskbar
         openWindows={windows}
@@ -2791,6 +2803,7 @@ function Desktop({ username, onLogout, onLock, wallpaper, onWallpaperChange, set
         onLock={onLock}
         onTogglePowerMenu={togglePowerMenu}
         powerMenuVisible={powerMenuVisible}
+        onToggleChatbot={toggleChatbot}
       />
     </div>
   );
