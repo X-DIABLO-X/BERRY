@@ -5,7 +5,8 @@ import Logo from '../../assets/logo.png';
 const SplashScreen = () => {
   const [statusIndex, setStatusIndex] = useState(0);
   const [dots, setDots] = useState('.');
-  
+  const [logoLoaded, setLogoLoaded] = useState(false);
+
   const statusMessages = [
     "Initializing system",
     "Loading configuration",
@@ -13,38 +14,34 @@ const SplashScreen = () => {
     "Preparing workspace",
     "Almost ready"
   ];
-  
-  // Cycle through status messages
+
   useEffect(() => {
-    const interval = setInterval(() => {
+    const messageInterval = setInterval(() => {
       setStatusIndex(prev => (prev + 1) % statusMessages.length);
     }, 500);
-    
-    return () => clearInterval(interval);
+    return () => clearInterval(messageInterval);
   }, []);
-  
-  // Animate loading dots
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      setDots(prev => prev === '...' ? '.' : prev + '.');
+    const dotInterval = setInterval(() => {
+      setDots(prev => (prev === '...') ? '.' : prev + '.');
     }, 500);
-    
-    return () => clearInterval(interval);
+    return () => clearInterval(dotInterval);
   }, []);
 
   return (
     <div className="splash-screen">
       <div className="splash-content">
-        <div className="splash-logo">
-          <img src={Logo} alt="BerryOS Logo" />
+        <div className={`splash-logo ${logoLoaded ? 'loaded' : ''}`}>
+          <img src={Logo} alt="BerryOS Logo" onLoad={() => setLogoLoaded(true)} />
         </div>
-        
+
         <div className="splash-progress-container">
           <div className="splash-progress-bar">
-            <div className="splash-progress-fill"></div>
+            <div className="splash-progress-fill" />
           </div>
         </div>
-        
+
         <div className="splash-text">
           <h1>BerryOS</h1>
           <div className="status-text">
@@ -52,11 +49,11 @@ const SplashScreen = () => {
             <span className="loading-dots">{dots}</span>
           </div>
         </div>
-        
+
         <div className="splash-version">Version 1.0</div>
       </div>
     </div>
   );
 };
 
-export default SplashScreen; 
+export default SplashScreen;
