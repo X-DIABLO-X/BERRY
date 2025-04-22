@@ -612,7 +612,7 @@ const handleBerryCommand = (args, terminalState, setTerminalState, config) => {
         'Kernel: Berry-Kernel 4.2.1',
         'Build: #257 SMP PREEMPT',
         'License: Open Source',
-        'Project: <a href="https://github.com/berryos/berry" target="_blank">https://github.com/berryos/berry</a>'
+        'Project: <a href="https://github.com/X-DIABLO-X/BERRY" target="_blank">https://github.com/X-DIABLO-X/BERRY</a>'
       ], 'output', terminalState, setTerminalState, config);
     }
     else if (subCommand === 'update') {
@@ -624,7 +624,7 @@ const handleBerryCommand = (args, terminalState, setTerminalState, config) => {
           'Latest version: BerryOS v1.0.0',
           'Current version: BerryOS v1.0.0',
           'Status: Your system is up to date!',
-          'For more information visit: <a href="https://berryos.example.com/updates" target="_blank">BerryOS Updates</a>'
+          'For more information visit: <a href="https://github.com/X-DIABLO-X/BERRY" target="_blank">BerryOS Updates</a>'
         ], 'success', terminalState, setTerminalState, config);
       }, 1500);
     }
